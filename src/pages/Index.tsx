@@ -21,7 +21,7 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/recruiter">
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/20 font-medium">
+              <Button size="lg" variant="outline" className="border-white hover:bg-white/20 font-medium text-orange-200">
                 For Recruiters
               </Button>
             </Link>
