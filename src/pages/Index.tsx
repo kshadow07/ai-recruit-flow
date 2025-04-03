@@ -1,13 +1,10 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SearchIcon, BriefcaseIcon, UsersIcon, RocketIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import MainLayout from "@/components/layouts/MainLayout";
-
 const Index = () => {
-  return (
-    <MainLayout title="">
+  return <MainLayout title="">
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-recruit-primary to-recruit-accent text-white py-20">
         <div className="container mx-auto px-4 text-center">
@@ -24,7 +21,7 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/recruiter">
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/20">
+              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/20 font-medium">
                 For Recruiters
               </Button>
             </Link>
@@ -183,8 +180,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-    </MainLayout>
-  );
+    </MainLayout>;
 };
-
 export default Index;
