@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,28 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				brand: {
+					50: '#e6f1ff',
+					100: '#cce3ff',
+					200: '#99c7ff',
+					300: '#66abff',
+					400: '#338fff',
+					500: '#0073e6',
+					600: '#005cb8',
+					700: '#00448a',
+					800: '#002d5c',
+					900: '#00172e',
+				},
+				recruit: {
+					primary: '#0A66C2',
+					secondary: '#2D3E50',
+					accent: '#17a2b8',
+					success: '#28a745',
+					warning: '#ffc107',
+					danger: '#dc3545',
+					light: '#f8f9fa',
+					dark: '#343a40',
 				}
 			},
 			borderRadius: {
@@ -84,11 +107,24 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-slow': {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.8' },
+				},
+				'fade-in': {
+					'0%': { opacity: '0' },
+					'100%': { opacity: '1' },
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-slow': 'pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+				'fade-in': 'fade-in 0.5s ease-out',
+			},
+			fontFamily: {
+				sans: ['Inter', 'sans-serif'],
 			}
 		}
 	},
