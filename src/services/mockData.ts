@@ -1,4 +1,3 @@
-
 import { JobDescription, JobApplication, Candidate, User } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "@/components/ui/use-toast";
@@ -40,7 +39,7 @@ const mockJobs: JobDescription[] = [
     status: "active",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    summary: "Senior React Developer position focusing on building responsive, scalable web applications using modern JavaScript frameworks. Ideal candidates will have extensive experience with React, TypeScript, and frontend architecture."
+    summary: "Senior React Developer position focusing on building responsive, scalable web applications using modern JavaScript frameworks. Ideal candidates will have extensive experience with React, TypeScript, and frontend architecture. The role involves leading development efforts, mentoring junior developers, implementing UI components, optimizing application performance, and integrating with backend services. Strong problem-solving skills and experience with state management solutions like Redux are essential. The position requires collaboration with cross-functional teams to deliver high-quality software solutions that meet business requirements and provide excellent user experiences."
   },
   {
     id: "job-2",
@@ -76,7 +75,7 @@ const mockJobs: JobDescription[] = [
     status: "active",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    summary: "Product Manager role focused on driving product vision and execution. The ideal candidate will combine strategic thinking with tactical execution to deliver products that meet customer needs and business objectives."
+    summary: "Product Manager role focused on driving product vision and execution. The ideal candidate will combine strategic thinking with tactical execution to deliver products that meet customer needs and business objectives. This position requires developing product roadmaps, gathering and analyzing market research, and collaborating with cross-functional teams including engineering, design, and marketing. Key responsibilities include defining user stories, prioritizing features based on business value, analyzing product metrics, and making data-driven decisions. Candidates should have experience in agile methodologies, excellent stakeholder management skills, and the ability to translate business requirements into technical specifications. Success in this role depends on balancing customer needs, technical constraints, and business goals to create innovative, competitive products."
   },
   {
     id: "job-3",
@@ -112,7 +111,7 @@ const mockJobs: JobDescription[] = [
     status: "active",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    summary: "Data Scientist role focused on developing machine learning models and extracting insights from large datasets. Ideal candidates will have a strong background in statistics, programming, and data analysis."
+    summary: "Data Scientist role focused on developing machine learning models and extracting insights from large datasets. Ideal candidates will have a strong background in statistics, programming, and data analysis. This position involves building and deploying predictive models, conducting exploratory data analysis, and creating visualization tools to communicate findings. The role requires expertise in Python, SQL, and machine learning frameworks like TensorFlow or PyTorch. Candidates should be proficient in statistical analysis, feature engineering, and model evaluation techniques. Experience with big data technologies and cloud computing platforms is a plus. The successful candidate will work cross-functionally with engineering and product teams to translate business problems into data science solutions and present technical findings to non-technical stakeholders in a clear, actionable manner."
   },
   {
     id: "job-4",
@@ -148,7 +147,7 @@ const mockJobs: JobDescription[] = [
     status: "active",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    summary: "UX/UI Designer position focusing on creating intuitive and engaging user experiences. The ideal candidate will combine strong visual design skills with user-centered design principles to create exceptional digital products."
+    summary: "UX/UI Designer position focusing on creating intuitive and engaging user experiences. The ideal candidate will combine strong visual design skills with user-centered design principles to create exceptional digital products. This role involves the entire design process from research and conceptualization to implementation and iteration. Key responsibilities include conducting user research, creating user flows, developing wireframes and prototypes, and designing polished UI components. The position requires proficiency in design tools like Figma, expertise in responsive design principles, and experience with design systems. Successful candidates will demonstrate both creative and analytical thinking, with the ability to transform complex requirements into simple, beautiful user interfaces while advocating for user needs throughout the product development lifecycle."
   }
 ];
 
@@ -373,8 +372,20 @@ async function generateJobSummary(title: string, responsibilities: string, quali
   // Simulate AI processing delay
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // In a real app, this would call an AI service
-  return `This ${title} position is looking for a skilled professional with relevant experience. The role involves ${responsibilities.substring(0, 50)}... and requires qualifications such as ${qualifications.substring(0, 50)}...`;
+  // Generate a more comprehensive summary for embedding
+  const responsibilitiesExcerpt = responsibilities.substring(0, 150).replace(/\n/g, " ").trim();
+  const qualificationsExcerpt = qualifications.substring(0, 150).replace(/\n/g, " ").trim();
+  
+  const summaryParts = [
+    `This ${title} position requires a skilled professional with relevant expertise and experience.`,
+    `Key responsibilities include ${responsibilitiesExcerpt}...`,
+    `The ideal candidate should possess ${qualificationsExcerpt}...`,
+    `This role demands excellent problem-solving abilities, strong communication skills, and the capacity to work effectively in a collaborative environment.`,
+    `The position offers opportunities for professional growth while contributing to innovative projects that deliver significant business value.`,
+    `The successful candidate will demonstrate technical proficiency, adaptability to changing requirements, and a commitment to continuous learning and improvement.`
+  ];
+  
+  return summaryParts.join(" ");
 }
 
 function calculateMatchScore(job: JobDescription, candidate: Candidate): number {
