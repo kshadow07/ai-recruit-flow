@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/recruiter/Dashboard";
 import CreateJobDescription from "./pages/recruiter/CreateJobDescription";
+import EditJobDescription from "./pages/recruiter/EditJobDescription";
 import JobDetails from "./pages/recruiter/JobDetails";
 import Applications from "./pages/recruiter/Applications";
 import JobsPage from "./pages/candidate/JobsPage";
@@ -28,6 +29,7 @@ const App = () => (
           {/* Recruiter Routes */}
           <Route path="/recruiter" element={<Dashboard />} />
           <Route path="/recruiter/create-job" element={<CreateJobDescription />} />
+          <Route path="/recruiter/edit-job/:id" element={<EditJobDescription />} />
           <Route path="/recruiter/job/:id" element={<JobDetails />} />
           <Route path="/recruiter/applications" element={<Applications />} />
           <Route path="/recruiter/applications/:jobId" element={<Applications />} />

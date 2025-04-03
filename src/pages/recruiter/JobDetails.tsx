@@ -71,6 +71,11 @@ const JobDetails = () => {
     }
   };
   
+  const handleEdit = () => {
+    if (!id) return;
+    navigate(`/recruiter/edit-job/${id}`);
+  };
+  
   if (loading) {
     return (
       <RecruiterLayout title="Job Details">
@@ -122,7 +127,7 @@ const JobDetails = () => {
         </div>
         
         <div className="flex space-x-3">
-          <Button variant="outline" size="sm" className="flex items-center">
+          <Button variant="outline" size="sm" className="flex items-center" onClick={handleEdit}>
             <PencilIcon className="w-4 h-4 mr-2" />
             Edit
           </Button>
