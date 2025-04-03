@@ -4,17 +4,43 @@ import { format, formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { MapPin, Briefcase, Clock, DollarSign } from "lucide-react";
+import { MapPin, Briefcase, Clock, DollarSign, PencilIcon, TrashIcon } from "lucide-react";
 import { JobDescription } from "@/types";
 import { formatSalary } from "@/utils/formatters";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { api } from "@/services/api";
+import { useNavigate } from "react-router-dom";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useState } from "react";
 
 interface JobCardProps {
   job: JobDescription;
   showApplyButton?: boolean;
+  showRecruiterActions?: boolean;
 }
 
-const JobCard = ({ job, showApplyButton = true }: JobCardProps) => {
+const JobCard = ({ job, showApplyButton = true, showRecruiterActions = false }: JobCardProps) => {
   const hasDeadlinePassed = new Date(job.deadline) < new Date();
+  const navigate = useNavigate();
+  
+  const handleDelete = async () => {
+    try {
+      await api.deleteJob(job.id);
+      window.location.reload(); // Refresh to show updated list
+    } catch (error) {
+      console.error("Error deleting job:", error);
+    }
+  };
   
   return (
     <Card className="job-card">
@@ -32,9 +58,50 @@ const JobCard = ({ job, showApplyButton = true }: JobCardProps) => {
             <p className="text-muted-foreground mb-4">{job.company}</p>
           </div>
           
-          <Badge variant={hasDeadlinePassed ? "destructive" : "default"}>
-            {hasDeadlinePassed ? "Closed" : job.status === "active" ? "Active" : job.status}
-          </Badge>
+          <div className="flex items-center">
+            <Badge variant={hasDeadlinePassed ? "destructive" : "default"} className="mr-2">
+              {hasDeadlinePassed ? "Closed" : job.status === "active" ? "Active" : job.status}
+            </Badge>
+            
+            {showRecruiterActions && (
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate(`/recruiter/edit-job/${job.id}`)}
+                >
+                  <PencilIcon className="w-4 h-4" />
+                </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the job posting
+                        and remove the data from our servers.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-red-600">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="space-y-2 mb-4">
@@ -77,7 +144,7 @@ const JobCard = ({ job, showApplyButton = true }: JobCardProps) => {
         </div>
       </CardContent>
       
-      {showApplyButton && (
+      {showApplyButton ? (
         <CardFooter className="border-t pt-4 flex justify-between">
           <div className="text-sm text-muted-foreground">
             Posted {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
@@ -89,6 +156,18 @@ const JobCard = ({ job, showApplyButton = true }: JobCardProps) => {
               disabled={hasDeadlinePassed}
             >
               {hasDeadlinePassed ? "Closed" : "Apply Now"}
+            </Button>
+          </Link>
+        </CardFooter>
+      ) : (
+        <CardFooter className="border-t pt-4 flex justify-between">
+          <div className="text-sm text-muted-foreground">
+            Posted {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
+          </div>
+          
+          <Link to={`/recruiter/applications/${job.id}`}>
+            <Button variant="outline">
+              View Applications
             </Button>
           </Link>
         </CardFooter>

@@ -137,14 +137,10 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Recent Jobs */}
+        {/* All Jobs */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recent Jobs</h2>
-            <Link to="/recruiter" className="text-sm text-recruit-primary flex items-center">
-              View all
-              <ChevronRightIcon className="w-4 h-4 ml-1" />
-            </Link>
+            <h2 className="text-xl font-semibold">Your Jobs</h2>
           </div>
           
           {loading ? (
@@ -157,8 +153,13 @@ const Dashboard = () => {
             </div>
           ) : jobs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {jobs.slice(0, 4).map((job) => (
-                <JobCard key={job.id} job={job} showApplyButton={false} />
+              {jobs.map((job) => (
+                <JobCard 
+                  key={job.id} 
+                  job={job} 
+                  showApplyButton={false} 
+                  showRecruiterActions={true}
+                />
               ))}
             </div>
           ) : (
