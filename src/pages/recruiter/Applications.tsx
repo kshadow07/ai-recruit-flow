@@ -42,7 +42,7 @@ import { JobApplication, JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
 
 const Applications = () => {
-  const { jobId } = useParams<{ jobId: string }>();
+  const { jobId } = useParams<{ jobId?: string }>();
   const navigate = useNavigate();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [job, setJob] = useState<JobDescription | null>(null);
@@ -55,7 +55,7 @@ const Applications = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch applications
+        // Fetch applications - if jobId is provided, fetch for that job only
         const applicationsData = await api.getApplications(jobId);
         setApplications(applicationsData);
         
@@ -142,7 +142,7 @@ const Applications = () => {
   });
   
   return (
-    <RecruiterLayout title={job ? `Applications for ${job.title}` : "Applications"}>
+    <RecruiterLayout title={job ? `Applications for ${job.title}` : "All Applications"}>
       <div className="mb-6">
         <Button 
           variant="outline" 

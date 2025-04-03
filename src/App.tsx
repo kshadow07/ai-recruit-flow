@@ -29,6 +29,7 @@ const App = () => (
           <Route path="/recruiter" element={<Dashboard />} />
           <Route path="/recruiter/create-job" element={<CreateJobDescription />} />
           <Route path="/recruiter/job/:id" element={<JobDetails />} />
+          <Route path="/recruiter/applications" element={<Applications />} />
           <Route path="/recruiter/applications/:jobId" element={<Applications />} />
           
           {/* Candidate Routes */}
