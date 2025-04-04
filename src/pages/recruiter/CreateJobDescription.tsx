@@ -26,6 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import RecruiterLayout from "@/components/layouts/RecruiterLayout";
 import { api } from "@/services/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
 
 // Define the form schema with Zod
 const jobSchema = z.object({
@@ -48,7 +50,9 @@ type JobFormValues = z.infer<typeof jobSchema>;
 
 const CreateJobDescription = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
   
   // Initialize form with default values
   const form = useForm<JobFormValues>({
@@ -72,6 +76,7 @@ const CreateJobDescription = () => {
 
   const onSubmit = async (values: JobFormValues) => {
     setIsSubmitting(true);
+    setProcessingError(null);
     
     try {
       // Transform skills string into array
@@ -96,11 +101,24 @@ const CreateJobDescription = () => {
         deadline: values.deadline.toISOString(),
       };
       
-      // Submit to API
+      // Submit to API - this will now also process with external API
       const createdJob = await api.createJob(jobData);
+      
+      toast({
+        title: "Job Created Successfully",
+        description: `Your job has been created and processed with ID: ${createdJob.externalId || createdJob.id}`,
+      });
+      
       navigate(`/recruiter/job/${createdJob.id}`);
     } catch (error) {
       console.error("Error creating job:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+      setProcessingError(errorMessage);
+      toast({
+        title: "Error Creating Job",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -112,14 +130,21 @@ const CreateJobDescription = () => {
         <CardHeader>
           <CardTitle>Create New Job Description</CardTitle>
           <CardDescription>
-            Fill out the form below to create a new job posting. Our AI will generate a summary
-            to help attract the best candidates.
+            Fill out the form below to create a new job posting. The data will be sent to our AI service
+            to generate a summary and match with potential candidates.
           </CardDescription>
         </CardHeader>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-6">
+              {processingError && (
+                <div className="bg-destructive/15 p-3 rounded-md text-destructive text-sm mb-4">
+                  <p className="font-medium">Error processing job:</p>
+                  <p>{processingError}</p>
+                </div>
+              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -387,7 +412,7 @@ const CreateJobDescription = () => {
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Job
+                {isSubmitting ? "Processing..." : "Create Job"}
               </Button>
             </CardFooter>
           </form>

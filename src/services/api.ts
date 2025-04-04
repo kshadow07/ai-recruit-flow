@@ -1,4 +1,3 @@
-
 import { mockDataService } from './mockData';
 import { JobDescription, JobApplication, Candidate, User } from '@/types';
 import { toast } from '@/components/ui/use-toast';
@@ -33,14 +32,67 @@ export const api = {
     }
   },
   
+  processJobWithExternalApi: async (jobData: any) => {
+    try {
+      const response = await fetch('http://localhost:3000/api/process-job', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jobData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  },
+  
   createJob: async (job: Omit<JobDescription, "id" | "createdAt" | "updatedAt" | "status" | "summary">) => {
     try {
-      const newJob = await mockDataService.createJob(job);
+      const formattedJobData = {
+        jobTitle: job.title,
+        department: job.department,
+        employmentType: job.employmentType,
+        minimumSalary: job.salaryRange.min,
+        maximumSalary: job.salaryRange.max,
+        requiredSkills: job.skillsRequired.join(', '),
+        applicationDeadline: new Date(job.deadline).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        jobResponsibilities: job.responsibilities,
+        qualifications: job.qualifications,
+        company: job.company,
+        location: job.location,
+        experienceLevel: job.experienceLevel
+      };
+      
+      const apiResponse = await api.processJobWithExternalApi(formattedJobData);
+      
+      const newJob = await mockDataService.createJob({
+        ...job,
+        externalId: apiResponse.id
+      });
+      
+      if (apiResponse.summary) {
+        await mockDataService.updateJob(newJob.id, { 
+          summary: apiResponse.summary 
+        });
+      }
+      
       toast({
         title: "Job Created",
         description: `${job.title} has been successfully created.`,
         variant: "default",
       });
+      
       return newJob;
     } catch (error) {
       handleApiError(error);

@@ -1,3 +1,4 @@
+
 import { JobDescription, JobApplication, Candidate, User } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "@/components/ui/use-toast";
@@ -263,7 +264,7 @@ export const mockDataService = {
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      summary: await generateJobSummary(job.title, job.responsibilities, job.qualifications)
+      summary: job.summary || await generateJobSummary(job.title, job.responsibilities, job.qualifications)
     };
     
     mockJobs.push(newJob);
