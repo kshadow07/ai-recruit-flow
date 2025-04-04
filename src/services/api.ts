@@ -134,18 +134,8 @@ export const api = {
         experienceLevel: job.experienceLevel
       };
       
-      // Store the API response with job ID and summary
-      const apiResponse = await api.processJobWithExternalApi(formattedJobData);
-      
-      // Create in mock data service for backward compatibility
-      const mockJob = await mockDataService.createJob({
-        ...job,
-        externalId: apiResponse.id,
-        requestData: formattedJobData
-      });
-      
-      // Now save to Supabase as well
-      const { data: supabaseJob, error } = await supabase
+      // First save to Supabase with initial draft status
+      const { data: initialJob, error: initialError } = await supabase
         .from('job_descriptions')
         .insert({
           title: job.title,
@@ -161,33 +151,69 @@ export const api = {
           salary_max: job.salaryRange.max,
           salary_currency: job.salaryRange.currency,
           deadline: new Date(job.deadline).toISOString(),
-          status: 'active',
-          external_id: apiResponse.id,
-          request_data: formattedJobData,
-          summary: apiResponse.summary || null
+          status: 'draft',
+          request_data: formattedJobData
         })
         .select()
         .single();
       
-      if (error) {
-        console.error('Error saving to Supabase:', error);
-        // Continue with mock data if Supabase fails
+      if (initialError) {
+        console.error('Error saving initial job to Supabase:', initialError);
+        throw initialError;
+      }
+      
+      if (!initialJob) {
+        throw new Error('Failed to create initial job in Supabase');
+      }
+      
+      // Now process with external API
+      const apiResponse = await api.processJobWithExternalApi(formattedJobData);
+      
+      // Update the job with external ID and summary
+      const { data: updatedJob, error: updateError } = await supabase
+        .from('job_descriptions')
+        .update({
+          external_id: apiResponse.id,
+          summary: apiResponse.summary,
+          status: 'active'
+        })
+        .eq('id', initialJob.id)
+        .select()
+        .single();
+      
+      if (updateError) {
+        console.error('Error updating job with external data:', updateError);
+        // Create in mock data service as fallback
+        const mockJob = await mockDataService.createJob({
+          ...job,
+          externalId: apiResponse.id,
+          requestData: formattedJobData
+        });
+        
         toast({
           title: "Job Created",
-          description: `${job.title} has been successfully created (saved to mock data only).`,
+          description: `${job.title} has been partially created. External ID saved to mock data only.`,
           variant: "default",
         });
+        
         return mockJob;
       }
       
+      // Also save to mock data for backward compatibility
+      await mockDataService.createJob({
+        ...job,
+        externalId: apiResponse.id,
+        requestData: formattedJobData
+      });
+      
       toast({
         title: "Job Created",
-        description: `${job.title} has been successfully created and saved to Supabase.`,
+        description: `${job.title} has been successfully created and saved to Supabase with ID: ${apiResponse.id}.`,
         variant: "default",
       });
       
       // Return the Supabase job converted to our format
-      return mapSupabaseJobToJobDescription(supabaseJob);
+      return mapSupabaseJobToJobDescription(updatedJob);
     } catch (error) {
       handleApiError(error);
       throw error;
