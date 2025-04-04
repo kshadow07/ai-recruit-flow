@@ -1,4 +1,3 @@
-
 import { mockDataService } from './mockData';
 import { JobDescription, JobApplication, Candidate, User } from '@/types';
 import { toast } from '@/components/ui/use-toast';
@@ -102,7 +101,12 @@ export const api = {
         throw new Error(`API Error: ${response.status}`);
       }
       
-      return await response.json();
+      const responseData = await response.json();
+      
+      // Log the complete response from the backend API
+      console.log('Backend API Response:', responseData);
+      
+      return responseData;
     } catch (error) {
       handleApiError(error);
       throw error;
