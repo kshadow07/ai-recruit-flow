@@ -1,3 +1,4 @@
+
 import { mockDataService } from './mockData';
 import { JobDescription, JobApplication, Candidate, User } from '@/types';
 import { toast } from '@/components/ui/use-toast';
@@ -74,13 +75,17 @@ export const api = {
         experienceLevel: job.experienceLevel
       };
       
+      // Store the API response with job ID and summary
       const apiResponse = await api.processJobWithExternalApi(formattedJobData);
       
+      // Create the job in the local database with both the external ID and the request data
       const newJob = await mockDataService.createJob({
         ...job,
-        externalId: apiResponse.id
+        externalId: apiResponse.id,
+        requestData: formattedJobData // Store the original request data
       });
       
+      // Update the job with the summary from the API
       if (apiResponse.summary) {
         await mockDataService.updateJob(newJob.id, { 
           summary: apiResponse.summary 

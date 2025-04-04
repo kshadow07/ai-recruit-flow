@@ -1,3 +1,4 @@
+
 export interface JobDescription {
   id: string;
   title: string;
@@ -20,6 +21,7 @@ export interface JobDescription {
   updatedAt: string; // ISO date string
   summary?: string; // AI-generated summary
   externalId?: string; // ID from external API
+  requestData?: any; // Store the original request data sent to the API
 }
 
 export interface Candidate {
