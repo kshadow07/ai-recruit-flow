@@ -2,12 +2,30 @@
 import { mockDataService } from './mockData';
 import { JobDescription, JobApplication, Candidate, User } from '@/types';
 import { toast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 // This service acts as a central API layer that could later be replaced with real API calls
 export const api = {
   // Jobs
   getJobs: async () => {
     try {
+      // First try to get from Supabase
+      const { data: supabaseJobs, error } = await supabase
+        .from('job_descriptions')
+        .select('*');
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        // Fallback to mock data
+        return await mockDataService.getJobs();
+      }
+      
+      // Transform Supabase data to match our types
+      if (supabaseJobs && supabaseJobs.length > 0) {
+        return supabaseJobs.map(mapSupabaseJobToJobDescription);
+      }
+      
+      // If no data in Supabase yet, get from mock data
       return await mockDataService.getJobs();
     } catch (error) {
       handleApiError(error);
@@ -17,6 +35,24 @@ export const api = {
   
   getActiveJobs: async () => {
     try {
+      // First try to get from Supabase
+      const { data: supabaseJobs, error } = await supabase
+        .from('job_descriptions')
+        .select('*')
+        .eq('status', 'active');
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        // Fallback to mock data
+        return await mockDataService.getActiveJobs();
+      }
+      
+      // Transform Supabase data to match our types
+      if (supabaseJobs && supabaseJobs.length > 0) {
+        return supabaseJobs.map(mapSupabaseJobToJobDescription);
+      }
+      
+      // If no data in Supabase yet, get from mock data
       return await mockDataService.getActiveJobs();
     } catch (error) {
       handleApiError(error);
@@ -26,6 +62,25 @@ export const api = {
   
   getJobById: async (id: string) => {
     try {
+      // First try to get from Supabase
+      const { data: supabaseJob, error } = await supabase
+        .from('job_descriptions')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        // Fallback to mock data
+        return await mockDataService.getJobById(id);
+      }
+      
+      // Transform Supabase data to match our types
+      if (supabaseJob) {
+        return mapSupabaseJobToJobDescription(supabaseJob);
+      }
+      
+      // If no data in Supabase, get from mock data
       return await mockDataService.getJobById(id);
     } catch (error) {
       handleApiError(error);
@@ -78,27 +133,57 @@ export const api = {
       // Store the API response with job ID and summary
       const apiResponse = await api.processJobWithExternalApi(formattedJobData);
       
-      // Create the job in the local database with both the external ID and the request data
-      const newJob = await mockDataService.createJob({
+      // Create in mock data service for backward compatibility
+      const mockJob = await mockDataService.createJob({
         ...job,
         externalId: apiResponse.id,
-        requestData: formattedJobData // Store the original request data
+        requestData: formattedJobData
       });
       
-      // Update the job with the summary from the API
-      if (apiResponse.summary) {
-        await mockDataService.updateJob(newJob.id, { 
-          summary: apiResponse.summary 
+      // Now save to Supabase as well
+      const { data: supabaseJob, error } = await supabase
+        .from('job_descriptions')
+        .insert({
+          title: job.title,
+          company: job.company,
+          department: job.department,
+          location: job.location,
+          employment_type: job.employmentType,
+          responsibilities: job.responsibilities,
+          qualifications: job.qualifications,
+          skills_required: job.skillsRequired,
+          experience_level: job.experienceLevel,
+          salary_min: job.salaryRange.min,
+          salary_max: job.salaryRange.max,
+          salary_currency: job.salaryRange.currency,
+          deadline: new Date(job.deadline).toISOString(),
+          status: 'active',
+          external_id: apiResponse.id,
+          request_data: formattedJobData,
+          summary: apiResponse.summary || null
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error saving to Supabase:', error);
+        // Continue with mock data if Supabase fails
+        toast({
+          title: "Job Created",
+          description: `${job.title} has been successfully created (saved to mock data only).`,
+          variant: "default",
         });
+        return mockJob;
       }
       
       toast({
         title: "Job Created",
-        description: `${job.title} has been successfully created.`,
+        description: `${job.title} has been successfully created and saved to Supabase.`,
         variant: "default",
       });
       
-      return newJob;
+      // Return the Supabase job converted to our format
+      return mapSupabaseJobToJobDescription(supabaseJob);
     } catch (error) {
       handleApiError(error);
       throw error;
@@ -107,13 +192,65 @@ export const api = {
   
   updateJob: async (id: string, updates: Partial<JobDescription>) => {
     try {
-      const updatedJob = await mockDataService.updateJob(id, updates);
+      // Update in mock data for backward compatibility
+      const updatedMockJob = await mockDataService.updateJob(id, updates);
+      
+      // Prepare data for Supabase update
+      const supabaseUpdates: any = {};
+      
+      if (updates.title) supabaseUpdates.title = updates.title;
+      if (updates.company) supabaseUpdates.company = updates.company;
+      if (updates.department) supabaseUpdates.department = updates.department;
+      if (updates.location) supabaseUpdates.location = updates.location;
+      if (updates.employmentType) supabaseUpdates.employment_type = updates.employmentType;
+      if (updates.responsibilities) supabaseUpdates.responsibilities = updates.responsibilities;
+      if (updates.qualifications) supabaseUpdates.qualifications = updates.qualifications;
+      if (updates.skillsRequired) supabaseUpdates.skills_required = updates.skillsRequired;
+      if (updates.experienceLevel) supabaseUpdates.experience_level = updates.experienceLevel;
+      if (updates.status) supabaseUpdates.status = updates.status;
+      if (updates.summary) supabaseUpdates.summary = updates.summary;
+      if (updates.externalId) supabaseUpdates.external_id = updates.externalId;
+      if (updates.requestData) supabaseUpdates.request_data = updates.requestData;
+      
+      if (updates.salaryRange) {
+        supabaseUpdates.salary_min = updates.salaryRange.min;
+        supabaseUpdates.salary_max = updates.salaryRange.max;
+        supabaseUpdates.salary_currency = updates.salaryRange.currency;
+      }
+      
+      if (updates.deadline) {
+        supabaseUpdates.deadline = new Date(updates.deadline).toISOString();
+      }
+      
+      // Always update the updated_at field
+      supabaseUpdates.updated_at = new Date().toISOString();
+      
+      // Update in Supabase
+      const { data: supabaseJob, error } = await supabase
+        .from('job_descriptions')
+        .update(supabaseUpdates)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error updating in Supabase:', error);
+        // Continue with mock data if Supabase fails
+        toast({
+          title: "Job Updated",
+          description: `${updatedMockJob.title} has been successfully updated (mock data only).`,
+          variant: "default",
+        });
+        return updatedMockJob;
+      }
+      
       toast({
         title: "Job Updated",
-        description: `${updatedJob.title} has been successfully updated.`,
+        description: `${supabaseJob ? supabaseJob.title : 'Job'} has been successfully updated in Supabase.`,
         variant: "default",
       });
-      return updatedJob;
+      
+      return supabaseJob ? mapSupabaseJobToJobDescription(supabaseJob) : updatedMockJob;
     } catch (error) {
       handleApiError(error);
       throw error;
@@ -122,12 +259,31 @@ export const api = {
   
   deleteJob: async (id: string) => {
     try {
+      // Delete from mock data for backward compatibility
       await mockDataService.deleteJob(id);
+      
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('job_descriptions')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Error deleting from Supabase:', error);
+        toast({
+          title: "Job Deleted",
+          description: "The job has been deleted from mock data only.",
+          variant: "default",
+        });
+        return { success: true };
+      }
+      
       toast({
         title: "Job Deleted",
-        description: "The job has been successfully deleted.",
+        description: "The job has been successfully deleted from Supabase.",
         variant: "default",
       });
+      
       return { success: true };
     } catch (error) {
       handleApiError(error);
@@ -204,4 +360,32 @@ function handleApiError(error: any) {
     description: message,
     variant: "destructive",
   });
+}
+
+// Helper function to map Supabase job format to our JobDescription type
+function mapSupabaseJobToJobDescription(supabaseJob: any): JobDescription {
+  return {
+    id: supabaseJob.id,
+    title: supabaseJob.title,
+    company: supabaseJob.company,
+    department: supabaseJob.department,
+    location: supabaseJob.location,
+    employmentType: supabaseJob.employment_type as any, // Type casting to match our enum
+    responsibilities: supabaseJob.responsibilities,
+    qualifications: supabaseJob.qualifications,
+    skillsRequired: supabaseJob.skills_required,
+    experienceLevel: supabaseJob.experience_level,
+    salaryRange: {
+      min: supabaseJob.salary_min,
+      max: supabaseJob.salary_max,
+      currency: supabaseJob.salary_currency,
+    },
+    deadline: supabaseJob.deadline,
+    status: supabaseJob.status as any, // Type casting to match our enum
+    createdAt: supabaseJob.created_at,
+    updatedAt: supabaseJob.updated_at,
+    summary: supabaseJob.summary,
+    externalId: supabaseJob.external_id,
+    requestData: supabaseJob.request_data,
+  };
 }

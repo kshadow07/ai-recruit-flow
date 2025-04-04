@@ -9,7 +9,75 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      job_descriptions: {
+        Row: {
+          company: string
+          created_at: string
+          deadline: string
+          department: string
+          employment_type: string
+          experience_level: string
+          external_id: string | null
+          id: string
+          location: string
+          qualifications: string
+          request_data: Json | null
+          responsibilities: string
+          salary_currency: string
+          salary_max: number
+          salary_min: number
+          skills_required: string[]
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          deadline: string
+          department: string
+          employment_type: string
+          experience_level: string
+          external_id?: string | null
+          id?: string
+          location: string
+          qualifications: string
+          request_data?: Json | null
+          responsibilities: string
+          salary_currency: string
+          salary_max: number
+          salary_min: number
+          skills_required: string[]
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          deadline?: string
+          department?: string
+          employment_type?: string
+          experience_level?: string
+          external_id?: string | null
+          id?: string
+          location?: string
+          qualifications?: string
+          request_data?: Json | null
+          responsibilities?: string
+          salary_currency?: string
+          salary_max?: number
+          salary_min?: number
+          skills_required?: string[]
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
