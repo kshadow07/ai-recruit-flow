@@ -264,7 +264,7 @@ export const mockDataService = {
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      summary: job.summary || await generateJobSummary(job.title, job.responsibilities, job.qualifications)
+      summary: await generateJobSummary(job.title, job.responsibilities, job.qualifications)
     };
     
     mockJobs.push(newJob);
