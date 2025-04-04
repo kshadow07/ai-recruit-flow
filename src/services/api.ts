@@ -115,6 +115,7 @@ export const api = {
   
   createJob: async (job: Omit<JobDescription, "id" | "createdAt" | "updatedAt" | "status" | "summary">) => {
     try {
+      // Format job data for API
       const formattedJobData = {
         jobTitle: job.title,
         department: job.department,
@@ -133,8 +134,8 @@ export const api = {
         location: job.location,
         experienceLevel: job.experienceLevel
       };
-      
-      // First save to Supabase with initial draft status
+
+      // Immediately save to Supabase with processing status
       const { data: initialJob, error: initialError } = await supabase
         .from('job_descriptions')
         .insert({
@@ -151,69 +152,77 @@ export const api = {
           salary_max: job.salaryRange.max,
           salary_currency: job.salaryRange.currency,
           deadline: new Date(job.deadline).toISOString(),
-          status: 'draft',
-          request_data: formattedJobData
+          status: 'processing', // Set initial status as processing
+          request_data: formattedJobData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
-      
-      if (initialError) {
-        console.error('Error saving initial job to Supabase:', initialError);
-        throw initialError;
-      }
-      
-      if (!initialJob) {
-        throw new Error('Failed to create initial job in Supabase');
-      }
-      
-      // Now process with external API
-      const apiResponse = await api.processJobWithExternalApi(formattedJobData);
-      
-      // Update the job with external ID and summary
-      const { data: updatedJob, error: updateError } = await supabase
-        .from('job_descriptions')
-        .update({
-          external_id: apiResponse.id,
-          summary: apiResponse.summary,
-          status: 'active'
-        })
-        .eq('id', initialJob.id)
-        .select()
-        .single();
-      
-      if (updateError) {
-        console.error('Error updating job with external data:', updateError);
-        // Create in mock data service as fallback
-        const mockJob = await mockDataService.createJob({
-          ...job,
-          externalId: apiResponse.id,
-          requestData: formattedJobData
-        });
-        
-        toast({
-          title: "Job Created",
-          description: `${job.title} has been partially created. External ID saved to mock data only.`,
-          variant: "default",
-        });
-        
-        return mockJob;
-      }
-      
-      // Also save to mock data for backward compatibility
-      await mockDataService.createJob({
-        ...job,
-        externalId: apiResponse.id,
-        requestData: formattedJobData
-      });
-      
+
+      if (initialError) throw initialError;
+
+      // Show immediate feedback
       toast({
         title: "Job Created",
-        description: `${job.title} has been successfully created and saved to Supabase with ID: ${apiResponse.id}.`,
+        description: "Job posting created. Processing details...",
         variant: "default",
       });
-      
-      // Return the Supabase job converted to our format
-      return mapSupabaseJobToJobDescription(updatedJob);
+
+      // Process with external API in the background
+      const processInBackground = async () => {
+        try {
+          console.log('Processing job with external API...');
+          const apiResponse = await api.processJobWithExternalApi(formattedJobData);
+          console.log('Received API response:', apiResponse);
+
+          // Update job with AI-generated data
+          const { data: updatedJob, error: updateError } = await supabase
+            .from('job_descriptions')
+            .update({
+              external_id: apiResponse.id,
+              summary: apiResponse.summary,
+              status: 'active',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', initialJob.id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          console.log('Job updated with AI data:', updatedJob);
+          toast({
+            title: "Processing Complete",
+            description: "Job details have been processed and updated.",
+            variant: "default",
+          });
+
+          return mapSupabaseJobToJobDescription(updatedJob);
+        } catch (error) {
+          console.error('Background processing error:', error);
+          // Update status to error if processing fails
+          await supabase
+            .from('job_descriptions')
+            .update({
+              status: 'error',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', initialJob.id);
+
+          toast({
+            title: "Processing Error",
+            description: "Job was created but processing failed. Please try again later.",
+            variant: "destructive",
+          });
+        }
+      };
+
+      // Start background processing
+      processInBackground();
+
+      // Return initial job immediately
+      return mapSupabaseJobToJobDescription(initialJob);
     } catch (error) {
       handleApiError(error);
       throw error;
