@@ -1,4 +1,3 @@
-
 export interface JobDescription {
   id: string;
   title: string;
@@ -16,7 +15,7 @@ export interface JobDescription {
     currency: string;
   };
   deadline: string; // ISO date string
-  status: 'active' | 'closed' | 'draft';
+  status: 'active' | 'closed' | 'draft' | 'processing' | 'error';
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
   summary?: string; // AI-generated summary
