@@ -34,6 +34,25 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
       .join("")
       .toUpperCase();
   };
+
+  // Calculate the match score percentage
+  const displayMatchScore = () => {
+    if (application.matchScore === undefined || application.matchScore === null) {
+      return 0;
+    }
+    
+    // If matchScore is already a percentage (e.g., 85 for 85%)
+    if (application.matchScore >= 0 && application.matchScore <= 100) {
+      return Math.round(application.matchScore);
+    }
+    
+    // If matchScore is a decimal (e.g., 0.85 for 85%)
+    if (application.matchScore >= 0 && application.matchScore <= 1) {
+      return Math.round(application.matchScore * 100);
+    }
+    
+    return 0;
+  };
   
   return (
     <Card 
@@ -62,10 +81,10 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
             <div className="mt-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">Match Score</span>
-                <span className="text-sm font-medium">{application.matchScore || 0}%</span>
+                <span className="text-sm font-medium">{displayMatchScore()}%</span>
               </div>
               <Progress 
-                value={application.matchScore || 0} 
+                value={displayMatchScore()} 
                 className="h-2"
               />
             </div>

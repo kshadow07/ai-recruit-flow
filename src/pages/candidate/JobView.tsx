@@ -21,12 +21,14 @@ import MainLayout from "@/components/layouts/MainLayout";
 import { api } from "@/services/api";
 import { JobDescription } from "@/types";
 import { formatDate, formatSalary } from "@/utils/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 const JobView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [job, setJob] = useState<JobDescription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [similarJobs, setSimilarJobs] = useState<JobDescription[]>([]);
   
   useEffect(() => {
     const fetchJob = async () => {
@@ -34,6 +36,46 @@ const JobView = () => {
         if (!id) return;
         const data = await api.getJobById(id);
         setJob(data);
+        
+        // Fetch similar jobs based on the same company or similar skills
+        if (data) {
+          const { data: similarJobsData } = await supabase
+            .from('job_descriptions')
+            .select('*')
+            .neq('id', id)
+            .eq('status', 'active')
+            .or(`company.eq.${data.company},skills_required.ov.{${data.skillsRequired.slice(0, 2).join(',')}}`)
+            .limit(2);
+            
+          if (similarJobsData) {
+            // Convert to JobDescription format
+            const formattedJobs: JobDescription[] = similarJobsData.map(job => ({
+              id: job.id,
+              title: job.title,
+              company: job.company,
+              department: job.department,
+              location: job.location,
+              employmentType: job.employment_type as any,
+              responsibilities: job.responsibilities,
+              qualifications: job.qualifications,
+              skillsRequired: job.skills_required,
+              experienceLevel: job.experience_level,
+              salaryRange: {
+                min: job.salary_min,
+                max: job.salary_max,
+                currency: job.salary_currency,
+              },
+              deadline: job.deadline,
+              status: job.status as any,
+              createdAt: job.created_at,
+              updatedAt: job.updated_at,
+              summary: job.summary,
+              externalId: job.external_id,
+              requestData: job.request_data
+            }));
+            setSimilarJobs(formattedJobs);
+          }
+        }
       } catch (error) {
         console.error("Error fetching job:", error);
       } finally {
@@ -234,26 +276,24 @@ const JobView = () => {
               <CardContent className="pt-6">
                 <h2 className="text-lg font-semibold mb-4">Similar Jobs</h2>
                 <div className="space-y-4">
-                  <div className="border rounded-md p-3 hover:border-primary/50 transition-colors cursor-pointer">
-                    <h3 className="font-medium">Frontend Developer</h3>
-                    <p className="text-sm text-muted-foreground mb-2">TechInnovate Solutions</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">San Francisco, CA</span>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                        Full-time
-                      </span>
-                    </div>
-                  </div>
-                  <div className="border rounded-md p-3 hover:border-primary/50 transition-colors cursor-pointer">
-                    <h3 className="font-medium">Backend Engineer</h3>
-                    <p className="text-sm text-muted-foreground mb-2">TechInnovate Solutions</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Remote</span>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                        Full-time
-                      </span>
-                    </div>
-                  </div>
+                  {similarJobs.length > 0 ? (
+                    similarJobs.map(similarJob => (
+                      <Link to={`/jobs/${similarJob.id}`} key={similarJob.id}>
+                        <div className="border rounded-md p-3 hover:border-primary/50 transition-colors cursor-pointer">
+                          <h3 className="font-medium">{similarJob.title}</h3>
+                          <p className="text-sm text-muted-foreground mb-2">{similarJob.company}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">{similarJob.location}</span>
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                              {similarJob.employmentType}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No similar jobs found.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

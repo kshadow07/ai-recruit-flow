@@ -9,6 +9,62 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      job_applications: {
+        Row: {
+          applied_at: string
+          candidate_email: string
+          candidate_name: string
+          candidate_phone: string
+          cover_letter: string | null
+          external_id: string | null
+          id: string
+          job_id: string
+          match_score: number | null
+          resume_url: string
+          skills: string[]
+          status: string
+          summary: string | null
+        }
+        Insert: {
+          applied_at?: string
+          candidate_email: string
+          candidate_name: string
+          candidate_phone: string
+          cover_letter?: string | null
+          external_id?: string | null
+          id?: string
+          job_id: string
+          match_score?: number | null
+          resume_url: string
+          skills: string[]
+          status?: string
+          summary?: string | null
+        }
+        Update: {
+          applied_at?: string
+          candidate_email?: string
+          candidate_name?: string
+          candidate_phone?: string
+          cover_letter?: string | null
+          external_id?: string | null
+          id?: string
+          job_id?: string
+          match_score?: number | null
+          resume_url?: string
+          skills?: string[]
+          status?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_descriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_descriptions: {
         Row: {
           company: string

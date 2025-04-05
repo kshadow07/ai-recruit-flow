@@ -1,3 +1,4 @@
+
 export interface JobDescription {
   id: string;
   title: string;
@@ -41,6 +42,8 @@ export interface JobApplication {
   status: 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'hired';
   matchScore?: number; // 0-100 percentage
   notes?: string;
+  summary?: string; // AI-generated summary from resume
+  externalId?: string; // ID from external API
 }
 
 export interface User {

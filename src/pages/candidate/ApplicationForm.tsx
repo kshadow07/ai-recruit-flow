@@ -18,11 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeftIcon, Loader2Icon, UploadIcon, FileIcon, XIcon, AlertTriangleIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeftIcon, Loader2Icon, UploadIcon, FileIcon, XIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
 import MainLayout from "@/components/layouts/MainLayout";
 import { api } from "@/services/api";
 import { JobDescription } from "@/types";
 import { formatDate } from "@/utils/formatters";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Define the form schema
 const applicationSchema = z.object({
@@ -42,6 +45,7 @@ const ApplicationForm = () => {
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   // Initialize the form
   const form = useForm<ApplicationFormValues>({
@@ -87,13 +91,21 @@ const ApplicationForm = () => {
       if (fileType !== "application/pdf" && 
           fileType !== "application/msword" && 
           fileType !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-        alert("Please upload a PDF or DOC file");
+        toast({
+          variant: "destructive",
+          title: "Invalid file type",
+          description: "Please upload a PDF or DOC file"
+        });
         return;
       }
       
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert("File size should not exceed 5MB");
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "File size should not exceed 5MB"
+        });
         return;
       }
       
@@ -107,39 +119,99 @@ const ApplicationForm = () => {
   
   const onSubmit = async (values: ApplicationFormValues) => {
     if (!resumeFile) {
-      alert("Please upload your resume");
+      toast({
+        variant: "destructive",
+        title: "Resume required",
+        description: "Please upload your resume"
+      });
       return;
     }
     
     if (!job || !id) return;
     
     setSubmitLoading(true);
+    setSubmitError(null);
     
     try {
-      // In a real app, we would upload the resume file to storage
-      // and get back a URL to store with the application
-      const resumeUrl = URL.createObjectURL(resumeFile);
-      
+      // 1. First save candidate data to Supabase
       // Transform skills string into array
       const skillsArray = values.skills.split(",").map(skill => skill.trim());
       
-      // Create candidate data
-      const candidateData = {
-        name: values.name,
-        email: values.email,
-        phone: values.phone,
-        resumeUrl,
-        coverLetter: values.coverLetter,
-        skills: skillsArray,
-      };
+      // Create a unique filename for the resume
+      const timestamp = Date.now();
+      const fileExtension = resumeFile.name.split('.').pop();
+      const fileName = `${values.name.replace(/\s+/g, '-').toLowerCase()}-${timestamp}.${fileExtension}`;
       
-      // Submit application
-      const application = await api.submitApplication(id, candidateData);
+      // Prepare the form data for the API request
+      const formData = new FormData();
       
-      // Navigate to success page
-      navigate(`/application/status/${application.id}`);
+      // Get the job's external_id from the job object
+      const jobExternalId = job.externalId;
+      
+      if (!jobExternalId) {
+        throw new Error("Job external ID not found");
+      }
+      
+      formData.append('job_id', jobExternalId);
+      formData.append('resume', resumeFile);
+      
+      // Create a temporary URL for the resume (will be updated with actual URL later)
+      const tempResumeUrl = URL.createObjectURL(resumeFile);
+      
+      // Insert the application into Supabase
+      const { data: applicationData, error: applicationError } = await supabase
+        .from('job_applications')
+        .insert({
+          job_id: id,
+          candidate_name: values.name,
+          candidate_email: values.email,
+          candidate_phone: values.phone,
+          skills: skillsArray,
+          cover_letter: values.coverLetter || null,
+          resume_url: tempResumeUrl, // Temporary URL
+          status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (applicationError) {
+        throw new Error(applicationError.message);
+      }
+      
+      // 2. Send the application to the backend API
+      const response = await fetch('http://localhost:4000/api/apply', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const apiResult = await response.json();
+      console.log("API response:", apiResult);
+      
+      // 3. Update the application record with the API response data
+      const { error: updateError } = await supabase
+        .from('job_applications')
+        .update({
+          external_id: apiResult.id,
+          summary: apiResult.summary,
+          match_score: apiResult.similarity_score,
+          status: 'reviewing' // Update initial status to reviewing once processed
+        })
+        .eq('id', applicationData.id);
+      
+      if (updateError) {
+        console.error("Error updating application with API data:", updateError);
+      }
+      
+      // 4. Navigate to success page
+      navigate(`/application/status/${applicationData.id}`);
+      
     } catch (error) {
       console.error("Error submitting application:", error);
+      setSubmitError(error instanceof Error ? error.message : "Failed to submit application");
     } finally {
       setSubmitLoading(false);
     }
@@ -202,6 +274,14 @@ const ApplicationForm = () => {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
               <CardContent className="space-y-6">
+                {submitError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertDescription>
+                      {submitError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="bg-muted p-4 rounded-md">
                   <h3 className="font-medium mb-2">Job Details</h3>
                   <div className="grid grid-cols-1 gap-2 text-sm">
