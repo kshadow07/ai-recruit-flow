@@ -150,12 +150,12 @@ const JobCard = ({ job, showApplyButton = true, showRecruiterActions = false }: 
             Posted {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
           </div>
           
-          <Link to={hasDeadlinePassed ? "#" : `/apply/${job.id}`}>
+          <Link to={hasDeadlinePassed ? "#" : `/jobs/${job.id}`}>
             <Button 
               variant="default" 
               disabled={hasDeadlinePassed}
             >
-              {hasDeadlinePassed ? "Closed" : "Apply Now"}
+              {hasDeadlinePassed ? "Closed" : "View Details"}
             </Button>
           </Link>
         </CardFooter>

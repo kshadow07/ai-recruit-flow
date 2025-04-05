@@ -11,7 +11,8 @@ import {
   TrashIcon,
   AlertTriangleIcon,
   CheckCircleIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  LoaderIcon
 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,8 @@ import { formatDate, formatSalary } from "@/utils/formatters";
 import { JobDescription } from "@/types";
 import { api } from "@/services/api";
 import RecruiterLayout from "@/components/layouts/RecruiterLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 const JobDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +42,7 @@ const JobDetails = () => {
   const [job, setJob] = useState<JobDescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [applicationCount, setApplicationCount] = useState(0);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   useEffect(() => {
     const fetchJobDetails = async () => {
@@ -48,9 +52,18 @@ const JobDetails = () => {
         const jobData = await api.getJobById(id);
         setJob(jobData);
         
-        // Fetch applications for this job
-        const applications = await api.getApplications(id);
-        setApplicationCount(applications.length);
+        // Fetch applications count directly from Supabase for real-time data
+        const { count, error } = await supabase
+          .from('job_applications')
+          .select('id', { count: 'exact' })
+          .eq('job_id', id);
+        
+        if (error) {
+          console.error("Error fetching application count:", error);
+          return;
+        }
+        
+        setApplicationCount(count || 0);
       } catch (error) {
         console.error("Error fetching job details:", error);
       } finally {
@@ -59,15 +72,83 @@ const JobDetails = () => {
     };
     
     fetchJobDetails();
+    
+    // Set up real-time subscription for applications
+    const channel = supabase
+      .channel('job-applications-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'job_applications',
+          filter: `job_id=eq.${id}`
+        }, 
+        (payload) => {
+          console.log('Application change detected:', payload);
+          // Update the application count
+          fetchJobDetails();
+        }
+      )
+      .subscribe();
+    
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
   
   const handleDelete = async () => {
     try {
       if (!id) return;
-      await api.deleteJob(id);
+      setDeleteLoading(true);
+      
+      // Check if there are any applications for this job
+      const { count, error: countError } = await supabase
+        .from('job_applications')
+        .select('id', { count: 'exact' })
+        .eq('job_id', id);
+      
+      if (countError) {
+        throw new Error("Failed to check applications: " + countError.message);
+      }
+      
+      if (count && count > 0) {
+        // Delete all applications for this job first
+        const { error: deleteAppsError } = await supabase
+          .from('job_applications')
+          .delete()
+          .eq('job_id', id);
+        
+        if (deleteAppsError) {
+          throw new Error("Failed to delete applications: " + deleteAppsError.message);
+        }
+      }
+      
+      // Now delete the job
+      const { error: deleteJobError } = await supabase
+        .from('job_descriptions')
+        .delete()
+        .eq('id', id);
+      
+      if (deleteJobError) {
+        throw new Error("Failed to delete job: " + deleteJobError.message);
+      }
+      
+      toast({
+        title: "Success",
+        description: "Job deleted successfully",
+      });
+      
       navigate("/recruiter");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting job:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete job. Please try again.",
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
   
@@ -127,15 +208,29 @@ const JobDetails = () => {
         </div>
         
         <div className="flex space-x-3">
-          <Button variant="outline" size="sm" className="flex items-center" onClick={handleEdit}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center" 
+            onClick={handleEdit}
+          >
             <PencilIcon className="w-4 h-4 mr-2" />
             Edit
           </Button>
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="flex items-center text-red-600 border-red-200 hover:bg-red-50">
-                <TrashIcon className="w-4 h-4 mr-2" />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center text-red-600 border-red-200 hover:bg-red-50"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <LoaderIcon className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <TrashIcon className="w-4 h-4 mr-2" />
+                )}
                 Delete
               </Button>
             </AlertDialogTrigger>
@@ -149,7 +244,9 @@ const JobDetails = () => {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-red-600">Delete</AlertDialogAction>
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600" disabled={deleteLoading}>
+                  {deleteLoading ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

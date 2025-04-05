@@ -11,7 +11,8 @@ import {
   CheckIcon,
   XIcon,
   AlertTriangleIcon,
-  Loader2Icon
+  Loader2Icon,
+  BuildingIcon
 } from "lucide-react";
 import {
   Select,
@@ -43,16 +44,71 @@ import { formatDate, formatTimeFromNow } from "@/utils/formatters";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+const HIGH_MATCH_SCORE = 80; // The threshold for high match scores
+
 const Applications = () => {
   const { jobId } = useParams<{ jobId?: string }>();
   const navigate = useNavigate();
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [jobs, setJobs] = useState<JobDescription[]>([]);
+  const [selectedJob, setSelectedJob] = useState<string>(jobId || "all");
   const [job, setJob] = useState<JobDescription | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  
+  // Fetch all available jobs for filtering
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('job_descriptions')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching jobs:", error);
+          return;
+        }
+        
+        if (data) {
+          // Transform data to match our JobDescription type
+          const formattedJobs: JobDescription[] = data.map(job => ({
+            id: job.id,
+            title: job.title,
+            company: job.company,
+            department: job.department,
+            location: job.location,
+            employmentType: job.employment_type,
+            responsibilities: job.responsibilities,
+            qualifications: job.qualifications,
+            skillsRequired: job.skills_required,
+            experienceLevel: job.experience_level,
+            salaryRange: {
+              min: job.salary_min,
+              max: job.salary_max,
+              currency: job.salary_currency,
+            },
+            deadline: job.deadline,
+            status: job.status,
+            createdAt: job.created_at,
+            updatedAt: job.updated_at,
+            summary: job.summary || undefined,
+            externalId: job.external_id || undefined,
+            requestData: job.request_data
+          }));
+          
+          setJobs(formattedJobs);
+        }
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+      }
+    };
+    
+    fetchJobs();
+  }, []);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -63,6 +119,7 @@ const Applications = () => {
         if (jobId) {
           const jobData = await api.getJobById(jobId);
           setJob(jobData);
+          setSelectedJob(jobId);
         }
         
         // Fetch applications directly from Supabase for real-time data
@@ -70,6 +127,8 @@ const Applications = () => {
         
         if (jobId) {
           query = query.eq('job_id', jobId);
+        } else if (selectedJob !== "all") {
+          query = query.eq('job_id', selectedJob);
         }
         
         const { data: applicationsData, error } = await query;
@@ -119,6 +178,8 @@ const Applications = () => {
           
           if (formattedApplications.length > 0) {
             setSelectedApplication(formattedApplications[0]);
+          } else {
+            setSelectedApplication(null);
           }
         }
       } catch (error) {
@@ -143,7 +204,7 @@ const Applications = () => {
           event: '*', 
           schema: 'public', 
           table: 'job_applications',
-          filter: jobId ? `job_id=eq.${jobId}` : undefined
+          filter: jobId ? `job_id=eq.${jobId}` : selectedJob !== "all" ? `job_id=eq.${selectedJob}` : undefined
         }, 
         (payload) => {
           console.log('Realtime update:', payload);
@@ -157,10 +218,53 @@ const Applications = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [jobId]);
+  }, [jobId, selectedJob]);
   
   const handleApplicationSelect = (application: JobApplication) => {
     setSelectedApplication(application);
+  };
+  
+  const handleJobFilterChange = (value: string) => {
+    setSelectedJob(value);
+    if (value !== "all") {
+      // Find the job to display its title
+      const selectedJobData = jobs.find(j => j.id === value);
+      if (selectedJobData) {
+        setJob(selectedJobData);
+      }
+    } else {
+      setJob(null);
+    }
+  };
+  
+  const sendNotificationEmail = async (application: JobApplication, status: string) => {
+    try {
+      // Find the job title and company for the email
+      const jobDetails = jobs.find(j => j.id === application.jobId);
+      
+      if (!jobDetails) {
+        console.error("Could not find job details for email notification");
+        return;
+      }
+      
+      // Call the edge function to send the email
+      const { error } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          candidate: application.candidate,
+          status: status,
+          jobTitle: jobDetails.title,
+          company: jobDetails.company
+        }
+      });
+      
+      if (error) {
+        throw new Error("Failed to send email notification");
+      }
+      
+      console.log("Email notification sent successfully");
+    } catch (error) {
+      console.error("Error sending email notification:", error);
+    }
   };
   
   const handleStatusChange = async (status: JobApplication["status"]) => {
@@ -199,6 +303,11 @@ const Applications = () => {
       ));
       setSelectedApplication(updatedApplication);
       
+      // Send email notification for shortlisted status
+      if (status === "shortlisted") {
+        await sendNotificationEmail(updatedApplication, "shortlisted");
+      }
+      
       toast({
         title: "Status updated",
         description: `Application status has been updated to ${status}.`
@@ -232,6 +341,52 @@ const Applications = () => {
     }
   };
   
+  // Check for high match scores and send notifications if needed
+  useEffect(() => {
+    const checkHighMatchScores = async () => {
+      // Go through all applications
+      for (const app of applications) {
+        // If match score is high and status is pending, send notification
+        if (
+          app.matchScore && 
+          app.matchScore >= HIGH_MATCH_SCORE && 
+          app.status === "pending"
+        ) {
+          console.log("High match score detected:", app.matchScore);
+          
+          // Send email notification
+          await sendNotificationEmail(app, "high_match");
+          
+          // Optionally update status to reviewing
+          try {
+            await supabase
+              .from('job_applications')
+              .update({ status: "reviewing" })
+              .eq('id', app.id);
+              
+            // Update local state
+            setApplications(prev => 
+              prev.map(a => a.id === app.id ? { ...a, status: "reviewing" as JobApplication["status"] } : a)
+            );
+            
+            if (selectedApplication && selectedApplication.id === app.id) {
+              setSelectedApplication({ ...selectedApplication, status: "reviewing" });
+            }
+            
+            toast({
+              title: "High match detected",
+              description: `${app.candidate.name}'s application has a high match score of ${app.matchScore}%`
+            });
+          } catch (error) {
+            console.error("Error updating high match application:", error);
+          }
+        }
+      }
+    };
+    
+    checkHighMatchScores();
+  }, [applications]);
+  
   // Filter and search applications
   const filteredApplications = applications.filter(app => {
     // Filter by status
@@ -259,15 +414,22 @@ const Applications = () => {
   
   return (
     <RecruiterLayout title={job ? `Applications for ${job.title}` : "All Applications"}>
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <Button 
           variant="outline" 
           size="sm" 
           onClick={() => navigate(jobId ? `/recruiter/job/${jobId}` : "/recruiter")}
+          className="mb-4 w-fit sm:mb-0"
         >
           <ArrowLeftIcon className="w-4 h-4 mr-2" />
           {jobId ? "Back to Job Details" : "Back to Dashboard"}
         </Button>
+        
+        {!loading && (
+          <div className="text-muted-foreground text-sm">
+            Showing {sortedApplications.length} {sortedApplications.length === 1 ? "application" : "applications"}
+          </div>
+        )}
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -276,36 +438,70 @@ const Applications = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-4">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 mb-3">
                   <FilterIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium">Filters</span>
                 </div>
                 
-                <Select 
-                  value={filter} 
-                  onValueChange={setFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="all">All Applications</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="reviewing">Reviewing</SelectItem>
-                      <SelectItem value="shortlisted">Shortlisted</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                      <SelectItem value="hired">Hired</SelectItem>
-                      <SelectItem value="processing">Processing</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                {!jobId && jobs.length > 0 && (
+                  <div className="mb-3">
+                    <label className="text-sm text-muted-foreground mb-2 block">
+                      Filter by Job
+                    </label>
+                    <Select 
+                      value={selectedJob} 
+                      onValueChange={handleJobFilterChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Jobs" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Jobs</SelectItem>
+                        {jobs.map(job => (
+                          <SelectItem key={job.id} value={job.id}>
+                            {job.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
-                <Input 
-                  placeholder="Search candidates..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">
+                    Filter by Status
+                  </label>
+                  <Select 
+                    value={filter} 
+                    onValueChange={setFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="all">All Applications</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="reviewing">Reviewing</SelectItem>
+                        <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="hired">Hired</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">
+                    Search Candidates
+                  </label>
+                  <Input 
+                    placeholder="Search candidates..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -320,7 +516,8 @@ const Applications = () => {
               sortedApplications.map((application) => (
                 <ApplicationItem 
                   key={application.id} 
-                  application={application} 
+                  application={application}
+                  isSelected={selectedApplication?.id === application.id}
                   onSelect={handleApplicationSelect}
                 />
               ))
@@ -353,7 +550,7 @@ const Applications = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-2xl">{selectedApplication.candidate.name}</CardTitle>
-                    <CardDescription>{job?.title}</CardDescription>
+                    {job && <CardDescription>{job.title}</CardDescription>}
                   </div>
                   <Badge className={getStatusColor(selectedApplication.status)}>
                     {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
@@ -391,6 +588,16 @@ const Applications = () => {
                       <span>{selectedApplication.candidate.phone}</span>
                     </div>
                   </div>
+                  
+                  {/* Job title info if we don't have a job selected */}
+                  {!job && selectedApplication.jobId && (
+                    <div className="flex items-center space-x-2 pb-2">
+                      <BuildingIcon className="w-4 h-4 text-muted-foreground" />
+                      <span>
+                        {jobs.find(j => j.id === selectedApplication.jobId)?.title || "Unknown Position"}
+                      </span>
+                    </div>
+                  )}
                   
                   {/* Cover letter if available */}
                   {selectedApplication.candidate.coverLetter && (

@@ -29,6 +29,7 @@ const JobView = () => {
   const [job, setJob] = useState<JobDescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [similarJobs, setSimilarJobs] = useState<JobDescription[]>([]);
+  const [hasApplied, setHasApplied] = useState(false);
   
   useEffect(() => {
     const fetchJob = async () => {
@@ -36,6 +37,16 @@ const JobView = () => {
         if (!id) return;
         const data = await api.getJobById(id);
         setJob(data);
+        
+        // Check if user has already applied for this job
+        const { data: applications, error } = await supabase
+          .from('job_applications')
+          .select('id')
+          .eq('job_id', id);
+          
+        if (!error && applications && applications.length > 0) {
+          setHasApplied(true);
+        }
         
         // Fetch similar jobs based on the same company or similar skills
         if (data) {
@@ -239,6 +250,11 @@ const JobView = () => {
                     <div className="bg-red-50 text-red-800 p-4 rounded-md text-sm mt-4 flex items-center">
                       <AlertTriangleIcon className="w-4 h-4 mr-2 flex-shrink-0" />
                       <span>This job posting has expired and is no longer accepting applications.</span>
+                    </div>
+                  ) : hasApplied ? (
+                    <div className="bg-green-50 text-green-800 p-4 rounded-md text-sm mt-4 flex items-center">
+                      <CheckIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span>You have already applied for this position.</span>
                     </div>
                   ) : (
                     <div className="mt-4">
