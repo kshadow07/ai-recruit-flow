@@ -17,6 +17,9 @@ import MainLayout from "@/components/layouts/MainLayout";
 import JobCard from "@/components/jobs/JobCard";
 import { api } from "@/services/api";
 import { JobDescription } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
+import { Loader2Icon } from "lucide-react";
 
 const JobsPage = () => {
   const [jobs, setJobs] = useState<JobDescription[]>([]);
@@ -25,15 +28,38 @@ const JobsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [appliedJobIds, setAppliedJobIds] = useState<string[]>([]);
   
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const data = await api.getActiveJobs();
-        setJobs(data);
-        setFilteredJobs(data);
+        // First fetch all active jobs
+        const jobsData = await api.getActiveJobs();
+        
+        // Then fetch all job applications from Supabase to filter out already applied jobs
+        const { data: applications, error } = await supabase
+          .from('job_applications')
+          .select('job_id');
+        
+        if (error) {
+          console.error("Error fetching applications:", error);
+        } else {
+          // Extract job IDs from applications
+          const appliedIds = applications?.map(app => app.job_id) || [];
+          setAppliedJobIds(appliedIds);
+          
+          // Filter out jobs that user has already applied for
+          const availableJobs = jobsData.filter(job => !appliedIds.includes(job.id));
+          setJobs(availableJobs);
+          setFilteredJobs(availableJobs);
+        }
       } catch (error) {
         console.error("Error fetching jobs:", error);
+        toast({
+          variant: "destructive", 
+          title: "Error",
+          description: "Failed to fetch job listings. Please try again later."
+        });
       } finally {
         setLoading(false);
       }
@@ -191,12 +217,9 @@ const JobsPage = () => {
             
             {/* Job cards */}
             {loading ? (
-              <div className="space-y-6">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i} className="animate-pulse-slow">
-                    <CardContent className="h-60"></CardContent>
-                  </Card>
-                ))}
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2Icon className="w-8 h-8 text-primary animate-spin mb-4" />
+                <p>Loading job listings...</p>
               </div>
             ) : filteredJobs.length > 0 ? (
               <div className="space-y-6">
@@ -211,7 +234,9 @@ const JobsPage = () => {
                     <SearchIcon className="w-12 h-12 text-muted-foreground mb-4" />
                     <h3 className="text-xl font-semibold mb-2">No jobs found</h3>
                     <p className="text-muted-foreground mb-4">
-                      Try adjusting your search or filters to find more jobs
+                      {appliedJobIds.length > 0 
+                        ? "You've applied to all available jobs that match your criteria!"
+                        : "Try adjusting your search or filters to find more jobs"}
                     </p>
                     <Button
                       variant="outline"

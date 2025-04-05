@@ -59,6 +59,14 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
     
     return 0;
   };
+
+  // Calculate a numeric value for the progress bar
+  const getProgressValue = (): number => {
+    if (application.status === "processing" || typeof displayMatchScore() === "string") {
+      return 0;
+    }
+    return displayMatchScore() as number;
+  };
   
   return (
     <Card 
@@ -91,17 +99,10 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
                   {application.status === "processing" ? "Processing..." : `${displayMatchScore()}%`}
                 </span>
               </div>
-              {application.status === "processing" ? (
-                <Progress 
-                  value={0}
-                  className="h-2"
-                />
-              ) : (
-                <Progress 
-                  value={typeof displayMatchScore() === "number" ? displayMatchScore() : 0} 
-                  className="h-2"
-                />
-              )}
+              <Progress 
+                value={getProgressValue()}
+                className="h-2"
+              />
             </div>
             
             <div className="mt-3 flex justify-between items-center">

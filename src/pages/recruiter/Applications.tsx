@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -40,6 +39,8 @@ import ApplicationItem from "@/components/applications/ApplicationItem";
 import { api } from "@/services/api";
 import { JobApplication, JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Applications = () => {
   const { jobId } = useParams<{ jobId?: string }>();
@@ -55,27 +56,107 @@ const Applications = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch applications - if jobId is provided, fetch for that job only
-        const applicationsData = await api.getApplications(jobId);
-        setApplications(applicationsData);
-        
-        if (applicationsData.length > 0) {
-          setSelectedApplication(applicationsData[0]);
-        }
+        setLoading(true);
         
         // If jobId is provided, fetch job details
         if (jobId) {
           const jobData = await api.getJobById(jobId);
           setJob(jobData);
         }
+        
+        // Fetch applications directly from Supabase for real-time data
+        // This will ensure we get the most recent applications including those being processed
+        let query = supabase.from('job_applications').select('*');
+        
+        if (jobId) {
+          query = query.eq('job_id', jobId);
+        }
+        
+        const { data: applicationsData, error } = await query;
+        
+        if (error) {
+          console.error("Error fetching applications from Supabase:", error);
+          toast({
+            variant: "destructive",
+            title: "Error fetching applications",
+            description: "Please try again later."
+          });
+          
+          // As a fallback, try using the API
+          const apiApplications = await api.getApplications(jobId);
+          
+          if (apiApplications && apiApplications.length > 0) {
+            const formattedApplications = apiApplications.map(app => ({
+              ...app,
+              // Format fields to match our type if needed
+            }));
+            setApplications(formattedApplications);
+            setSelectedApplication(formattedApplications[0]);
+          }
+        } else if (applicationsData) {
+          // Transform Supabase data to match our JobApplication type
+          const formattedApplications: JobApplication[] = applicationsData.map(app => ({
+            id: app.id,
+            jobId: app.job_id,
+            appliedAt: app.applied_at,
+            status: app.status as JobApplication['status'],
+            matchScore: app.match_score !== null ? app.match_score : undefined,
+            notes: app.notes || undefined,
+            summary: app.summary || undefined,
+            externalId: app.external_id || undefined,
+            candidate: {
+              id: app.id, // Using the application id as candidate id for now
+              name: app.candidate_name,
+              email: app.candidate_email,
+              phone: app.candidate_phone,
+              resumeUrl: app.resume_url,
+              coverLetter: app.cover_letter || undefined,
+              skills: app.skills || []
+            }
+          }));
+          
+          setApplications(formattedApplications);
+          
+          if (formattedApplications.length > 0) {
+            setSelectedApplication(formattedApplications[0]);
+          }
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load applications. Please try again later."
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchData();
+    
+    // Set up a real-time subscription to job applications for live updates
+    const channel = supabase
+      .channel('applications-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'job_applications',
+          filter: jobId ? `job_id=eq.${jobId}` : undefined
+        }, 
+        (payload) => {
+          console.log('Realtime update:', payload);
+          // Refresh the data when there's a change
+          fetchData();
+        }
+      )
+      .subscribe();
+    
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [jobId]);
   
   const handleApplicationSelect = (application: JobApplication) => {
@@ -87,15 +168,48 @@ const Applications = () => {
     
     setUpdatingStatus(true);
     try {
-      const updated = await api.updateApplicationStatus(selectedApplication.id, status);
+      // Update status in Supabase
+      const { data, error } = await supabase
+        .from('job_applications')
+        .update({ status })
+        .eq('id', selectedApplication.id)
+        .select()
+        .single();
       
-      // Update the local state
+      if (error) {
+        throw error;
+      }
+      
+      // Also update via API to keep both systems in sync
+      try {
+        await api.updateApplicationStatus(selectedApplication.id, status);
+      } catch (apiError) {
+        console.error("API update failed, but Supabase update succeeded:", apiError);
+        // Continue since the critical update in Supabase worked
+      }
+      
+      // Update local state
+      const updatedApplication = {
+        ...selectedApplication,
+        status
+      };
+      
       setApplications(applications.map(app => 
-        app.id === updated.id ? updated : app
+        app.id === updatedApplication.id ? updatedApplication : app
       ));
-      setSelectedApplication(updated);
+      setSelectedApplication(updatedApplication);
+      
+      toast({
+        title: "Status updated",
+        description: `Application status has been updated to ${status}.`
+      });
     } catch (error) {
       console.error("Error updating status:", error);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Failed to update application status. Please try again."
+      });
     } finally {
       setUpdatingStatus(false);
     }
@@ -111,6 +225,8 @@ const Applications = () => {
         return "bg-blue-100 text-blue-800";
       case "hired":
         return "bg-purple-100 text-purple-800";
+      case "processing":
+        return "bg-yellow-100 text-yellow-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -180,6 +296,7 @@ const Applications = () => {
                       <SelectItem value="shortlisted">Shortlisted</SelectItem>
                       <SelectItem value="rejected">Rejected</SelectItem>
                       <SelectItem value="hired">Hired</SelectItem>
+                      <SelectItem value="processing">Processing</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -250,10 +367,14 @@ const Applications = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">Match Score</span>
-                      <span className="font-medium">{selectedApplication.matchScore || 0}%</span>
+                      <span className="font-medium">
+                        {selectedApplication.status === "processing" 
+                          ? "Processing..." 
+                          : `${selectedApplication.matchScore || 0}%`}
+                      </span>
                     </div>
                     <Progress 
-                      value={selectedApplication.matchScore || 0} 
+                      value={selectedApplication.status === "processing" ? 0 : (selectedApplication.matchScore || 0)}
                       className="h-2"
                     />
                   </div>
@@ -296,7 +417,11 @@ const Applications = () => {
                   {/* Resume download */}
                   <div>
                     <h3 className="font-medium mb-2">Resume</h3>
-                    <Button variant="outline" className="w-full flex items-center justify-center">
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center justify-center"
+                      onClick={() => window.open(selectedApplication.candidate.resumeUrl)}
+                    >
                       <FileTextIcon className="w-4 h-4 mr-2" />
                       Download Resume
                     </Button>
@@ -326,6 +451,16 @@ const Applications = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Resume summary if available */}
+                  {selectedApplication.summary && (
+                    <div>
+                      <h3 className="font-medium mb-2">AI Resume Summary</h3>
+                      <div className="bg-blue-50 border border-blue-100 p-4 rounded-md text-sm text-blue-900">
+                        {selectedApplication.summary}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
               
@@ -338,7 +473,7 @@ const Applications = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      disabled={selectedApplication.status === "reviewing" || updatingStatus}
+                      disabled={selectedApplication.status === "reviewing" || updatingStatus || selectedApplication.status === "processing"}
                       onClick={() => handleStatusChange("reviewing")}
                       className={selectedApplication.status === "reviewing" ? "bg-blue-100 text-blue-800" : ""}
                     >
@@ -347,7 +482,7 @@ const Applications = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      disabled={selectedApplication.status === "shortlisted" || updatingStatus}
+                      disabled={selectedApplication.status === "shortlisted" || updatingStatus || selectedApplication.status === "processing"}
                       onClick={() => handleStatusChange("shortlisted")}
                       className={selectedApplication.status === "shortlisted" ? "bg-green-100 text-green-800" : ""}
                     >
@@ -357,7 +492,7 @@ const Applications = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      disabled={selectedApplication.status === "rejected" || updatingStatus}
+                      disabled={selectedApplication.status === "rejected" || updatingStatus || selectedApplication.status === "processing"}
                       onClick={() => handleStatusChange("rejected")}
                       className={selectedApplication.status === "rejected" ? "bg-red-100 text-red-800" : ""}
                     >
@@ -367,12 +502,18 @@ const Applications = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      disabled={selectedApplication.status === "hired" || updatingStatus}
+                      disabled={selectedApplication.status === "hired" || updatingStatus || selectedApplication.status === "processing"}
                       onClick={() => handleStatusChange("hired")}
                       className={selectedApplication.status === "hired" ? "bg-purple-100 text-purple-800" : ""}
                     >
                       Hire
                     </Button>
+                    {selectedApplication.status === "processing" && (
+                      <div className="flex items-center ml-2 text-yellow-600">
+                        <Loader2Icon className="animate-spin mr-2 h-4 w-4" /> 
+                        Processing application...
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardFooter>
