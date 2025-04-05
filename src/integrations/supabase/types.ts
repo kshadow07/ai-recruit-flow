@@ -20,6 +20,7 @@ export type Database = {
           id: string
           job_id: string
           match_score: number | null
+          notes: string | null
           resume_url: string
           skills: string[]
           status: string
@@ -35,6 +36,7 @@ export type Database = {
           id?: string
           job_id: string
           match_score?: number | null
+          notes?: string | null
           resume_url: string
           skills: string[]
           status?: string
@@ -50,6 +52,7 @@ export type Database = {
           id?: string
           job_id?: string
           match_score?: number | null
+          notes?: string | null
           resume_url?: string
           skills?: string[]
           status?: string

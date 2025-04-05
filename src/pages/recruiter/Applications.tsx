@@ -101,7 +101,7 @@ const Applications = () => {
             appliedAt: app.applied_at,
             status: app.status as JobApplication['status'],
             matchScore: app.match_score !== null ? app.match_score : undefined,
-            notes: app.notes || undefined, // This line causes the error because 'notes' doesn't exist in Supabase response
+            notes: app.notes || undefined, // Handle notes from Supabase response
             summary: app.summary || undefined,
             externalId: app.external_id || undefined,
             candidate: {
