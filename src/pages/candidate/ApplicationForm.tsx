@@ -133,7 +133,11 @@ const ApplicationForm = () => {
     setSubmitError(null);
     
     try {
-      // 1. First save candidate data to Supabase
+      // First check if job has an external_id
+      if (!job.externalId) {
+        throw new Error("Job ID not found. Please try again later.");
+      }
+      
       // Transform skills string into array
       const skillsArray = values.skills.split(",").map(skill => skill.trim());
       
@@ -142,34 +146,19 @@ const ApplicationForm = () => {
       const fileExtension = resumeFile.name.split('.').pop();
       const fileName = `${values.name.replace(/\s+/g, '-').toLowerCase()}-${timestamp}.${fileExtension}`;
       
-      // Prepare the form data for the API request
-      const formData = new FormData();
-      
-      // Get the job's external_id from the job object
-      const jobExternalId = job.externalId;
-      
-      if (!jobExternalId) {
-        throw new Error("Job external ID not found");
-      }
-      
-      formData.append('job_id', jobExternalId);
-      formData.append('resume', resumeFile);
-      
-      // Create a temporary URL for the resume (will be updated with actual URL later)
-      const tempResumeUrl = URL.createObjectURL(resumeFile);
-      
-      // Insert the application into Supabase
+      // 1. First save application to Supabase
       const { data: applicationData, error: applicationError } = await supabase
         .from('job_applications')
         .insert({
-          job_id: id,
+          job_id: id, // This is the internal Supabase UUID for the job
           candidate_name: values.name,
           candidate_email: values.email,
           candidate_phone: values.phone,
           skills: skillsArray,
           cover_letter: values.coverLetter || null,
-          resume_url: tempResumeUrl, // Temporary URL
-          status: 'pending'
+          resume_url: `http://localhost:8000/${fileName}`, // Mock URL that would be updated later
+          status: 'processing',
+          applied_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -178,41 +167,62 @@ const ApplicationForm = () => {
         throw new Error(applicationError.message);
       }
       
-      // 2. Send the application to the backend API
-      const response = await fetch('http://localhost:4000/api/apply', {
-        method: 'POST',
-        body: formData,
-      });
+      // 2. Prepare the form data for the backend API request
+      const formData = new FormData();
+      formData.append('job_id', job.externalId); // Use the external_id from the job
+      formData.append('resume', resumeFile);
       
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
+      console.log("Sending to API with job_id:", job.externalId);
       
-      const apiResult = await response.json();
-      console.log("API response:", apiResult);
+      // 3. Send the request to the backend
+      // Start a background process to avoid blocking the UI
+      const processApplication = async () => {
+        try {
+          const response = await fetch('http://localhost:4000/api/apply', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+          
+          const apiResult = await response.json();
+          console.log("API response:", apiResult);
+          
+          // 4. Update the application record with the API response data
+          await supabase
+            .from('job_applications')
+            .update({
+              external_id: apiResult.id,
+              summary: apiResult.summary,
+              match_score: apiResult.similarity_score * 100, // Convert to percentage
+              status: 'reviewing' // Update initial status to reviewing once processed
+            })
+            .eq('id', applicationData.id);
+          
+          console.log("Application updated with API data");
+        } catch (error) {
+          console.error("Error in background processing:", error);
+          // Update with error status if processing fails
+          await supabase
+            .from('job_applications')
+            .update({
+              status: 'error'
+            })
+            .eq('id', applicationData.id);
+        }
+      };
       
-      // 3. Update the application record with the API response data
-      const { error: updateError } = await supabase
-        .from('job_applications')
-        .update({
-          external_id: apiResult.id,
-          summary: apiResult.summary,
-          match_score: apiResult.similarity_score,
-          status: 'reviewing' // Update initial status to reviewing once processed
-        })
-        .eq('id', applicationData.id);
+      // Start background process
+      processApplication();
       
-      if (updateError) {
-        console.error("Error updating application with API data:", updateError);
-      }
-      
-      // 4. Navigate to success page
+      // Immediately navigate to the success page
       navigate(`/application/status/${applicationData.id}`);
       
     } catch (error) {
       console.error("Error submitting application:", error);
       setSubmitError(error instanceof Error ? error.message : "Failed to submit application");
-    } finally {
       setSubmitLoading(false);
     }
   };

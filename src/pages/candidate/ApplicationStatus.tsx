@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import MainLayout from "@/components/layouts/MainLayout";
-import { api } from "@/services/api";
 import { JobApplication, JobDescription } from "@/types";
 import { formatDate } from "@/utils/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 const ApplicationStatus = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,13 +30,82 @@ const ApplicationStatus = () => {
       try {
         if (!id) return;
         
-        // Fetch application details
-        const applicationData = await api.getApplicationById(id);
-        setApplication(applicationData);
+        // Fetch application details from Supabase
+        const { data: applicationData, error: applicationError } = await supabase
+          .from('job_applications')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (applicationError) throw applicationError;
+        
+        if (!applicationData) {
+          console.error("Application not found");
+          return;
+        }
         
         // Fetch job details
-        const jobData = await api.getJobById(applicationData.jobId);
-        setJob(jobData);
+        const { data: jobData, error: jobError } = await supabase
+          .from('job_descriptions')
+          .select('*')
+          .eq('id', applicationData.job_id)
+          .single();
+        
+        if (jobError) throw jobError;
+        
+        if (!jobData) {
+          console.error("Job not found");
+          return;
+        }
+        
+        // Format the application data to match our type
+        const formattedApplication: JobApplication = {
+          id: applicationData.id,
+          jobId: applicationData.job_id,
+          appliedAt: applicationData.applied_at,
+          status: applicationData.status as 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'hired',
+          matchScore: applicationData.match_score || 0,
+          notes: null,
+          summary: applicationData.summary,
+          externalId: applicationData.external_id,
+          candidate: {
+            id: applicationData.id, // Using the same ID for simplicity
+            name: applicationData.candidate_name,
+            email: applicationData.candidate_email,
+            phone: applicationData.candidate_phone,
+            resumeUrl: applicationData.resume_url,
+            skills: applicationData.skills,
+            coverLetter: applicationData.cover_letter
+          }
+        };
+        
+        // Format the job data to match our type
+        const formattedJob = {
+          id: jobData.id,
+          title: jobData.title,
+          company: jobData.company,
+          department: jobData.department,
+          location: jobData.location,
+          employmentType: jobData.employment_type as any,
+          responsibilities: jobData.responsibilities,
+          qualifications: jobData.qualifications,
+          skillsRequired: jobData.skills_required,
+          experienceLevel: jobData.experience_level,
+          salaryRange: {
+            min: jobData.salary_min,
+            max: jobData.salary_max,
+            currency: jobData.salary_currency,
+          },
+          deadline: jobData.deadline,
+          status: jobData.status as any,
+          createdAt: jobData.created_at,
+          updatedAt: jobData.updated_at,
+          summary: jobData.summary,
+          externalId: jobData.external_id,
+        };
+        
+        setApplication(formattedApplication);
+        setJob(formattedJob);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -46,6 +115,25 @@ const ApplicationStatus = () => {
     
     fetchData();
   }, [id]);
+  
+  // Calculate match score
+  const displayMatchScore = () => {
+    if (!application || application.matchScore === undefined || application.matchScore === null) {
+      return 0;
+    }
+    
+    // If matchScore is already a percentage (e.g., 85 for 85%)
+    if (application.matchScore >= 0 && application.matchScore <= 100) {
+      return Math.round(application.matchScore);
+    }
+    
+    // If matchScore is a decimal (e.g., 0.85 for 85%)
+    if (application.matchScore >= 0 && application.matchScore <= 1) {
+      return Math.round(application.matchScore * 100);
+    }
+    
+    return 0;
+  };
   
   if (loading) {
     return (
@@ -147,12 +235,23 @@ const ApplicationStatus = () => {
                 <div className="bg-muted p-4 rounded-md">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Job Match</span>
-                    <span className="text-sm font-medium">{application.matchScore}%</span>
+                    {application.status === "processing" ? (
+                      <span className="text-sm font-medium">Processing...</span>
+                    ) : (
+                      <span className="text-sm font-medium">{displayMatchScore()}%</span>
+                    )}
                   </div>
-                  <Progress 
-                    value={application.matchScore} 
-                    className="h-2 mb-4"
-                  />
+                  {application.status === "processing" ? (
+                    <Progress 
+                      value={0} 
+                      className="h-2 mb-4"
+                    />
+                  ) : (
+                    <Progress 
+                      value={displayMatchScore()} 
+                      className="h-2 mb-4"
+                    />
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Our AI has analyzed your skills against the job requirements and calculated a match score.
                   </p>

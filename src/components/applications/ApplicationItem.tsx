@@ -37,6 +37,10 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
 
   // Calculate the match score percentage
   const displayMatchScore = () => {
+    if (application.status === "processing") {
+      return "Processing";
+    }
+    
     if (application.matchScore === undefined || application.matchScore === null) {
       return 0;
     }
@@ -81,12 +85,21 @@ const ApplicationItem = ({ application, onSelect }: ApplicationItemProps) => {
             <div className="mt-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">Match Score</span>
-                <span className="text-sm font-medium">{displayMatchScore()}%</span>
+                <span className="text-sm font-medium">
+                  {application.status === "processing" ? "Processing..." : `${displayMatchScore()}%`}
+                </span>
               </div>
-              <Progress 
-                value={displayMatchScore()} 
-                className="h-2"
-              />
+              {application.status === "processing" ? (
+                <Progress 
+                  value={0}
+                  className="h-2"
+                />
+              ) : (
+                <Progress 
+                  value={typeof displayMatchScore() === "number" ? displayMatchScore() : 0} 
+                  className="h-2"
+                />
+              )}
             </div>
             
             <div className="mt-3 flex justify-between items-center">
