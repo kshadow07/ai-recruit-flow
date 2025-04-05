@@ -39,7 +39,7 @@ export interface JobApplication {
   jobId: string;
   candidate: Candidate;
   appliedAt: string; // ISO date string
-  status: 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'hired';
+  status: 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'hired' | 'processing';
   matchScore?: number; // 0-100 percentage
   notes?: string;
   summary?: string; // AI-generated summary from resume
