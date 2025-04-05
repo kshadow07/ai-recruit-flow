@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -65,7 +66,6 @@ const Applications = () => {
         }
         
         // Fetch applications directly from Supabase for real-time data
-        // This will ensure we get the most recent applications including those being processed
         let query = supabase.from('job_applications').select('*');
         
         if (jobId) {
@@ -101,7 +101,7 @@ const Applications = () => {
             appliedAt: app.applied_at,
             status: app.status as JobApplication['status'],
             matchScore: app.match_score !== null ? app.match_score : undefined,
-            notes: app.notes || undefined,
+            notes: app.notes || undefined, // This line causes the error because 'notes' doesn't exist in Supabase response
             summary: app.summary || undefined,
             externalId: app.external_id || undefined,
             candidate: {
