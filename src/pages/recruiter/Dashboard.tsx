@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -93,7 +92,7 @@ const Dashboard = () => {
         
         // Get applications count
         const { count: applicationsCount } = await supabase
-          .from("applications")
+          .from("job_applications")
           .select("*", { count: "exact" });
           
         // Find next deadline
@@ -145,7 +144,7 @@ const Dashboard = () => {
     );
   });
   
-  const renderJobSkillBadges = (job: JobDescription) => {
+  function renderJobSkillBadges(job: JobDescription) {
     const skills = Array.isArray(job.skillsRequired) ? job.skillsRequired : [];
     return skills.slice(0, 4).map((skill, index) => (
       <Badge key={index} variant="outline" className="mr-1 mb-1">
