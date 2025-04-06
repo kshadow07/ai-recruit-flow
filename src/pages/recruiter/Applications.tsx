@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   FilterIcon, 
-  ArrowLeftIcon, 
+  ArrowLeft, 
   UserIcon,
   MailIcon,
   PhoneIcon,
@@ -77,7 +77,7 @@ const Applications = () => {
           company: job.company,
           department: job.department,
           location: job.location,
-          employmentType: job.employment_type,
+          employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
           responsibilities: job.responsibilities,
           qualifications: job.qualifications,
           skillsRequired: job.skills_required,
@@ -392,7 +392,7 @@ const Applications = () => {
           onClick={() => navigate(jobId ? `/recruiter/job/${jobId}` : "/recruiter")}
           className="mb-4 w-fit sm:mb-0"
         >
-          <ArrowLeftIcon className="w-4 h-4 mr-2" />
+          <ArrowLeft className="w-4 h-4 mr-2" />
           {jobId ? "Back to Job Details" : "Back to Dashboard"}
         </Button>
         

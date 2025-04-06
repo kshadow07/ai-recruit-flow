@@ -22,7 +22,7 @@ export const fetchJobs = async (): Promise<JobDescription[]> => {
     company: job.company,
     department: job.department,
     location: job.location,
-    employmentType: job.employment_type,
+    employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
     responsibilities: job.responsibilities,
     qualifications: job.qualifications,
     skillsRequired: job.skills_required,
@@ -61,7 +61,7 @@ export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
     company: data.company,
     department: data.department,
     location: data.location,
-    employmentType: data.employment_type,
+    employmentType: data.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
     responsibilities: data.responsibilities,
     qualifications: data.qualifications,
     skillsRequired: data.skills_required,
@@ -81,6 +81,44 @@ export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
   };
 };
 
+// Function to fetch user applications by email
+export const fetchUserApplications = async (userEmail: string) => {
+  if (!userEmail) return [];
+  
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select(`
+      *,
+      job_descriptions:job_id(*)
+    `)
+    .eq('candidate_email', userEmail);
+    
+  if (error) {
+    console.error('Error fetching user applications:', error);
+    throw new Error('Failed to fetch applications');
+  }
+  
+  return data || [];
+};
+
+// Function to fetch applications count for a job
+export const fetchApplicationsCount = async (jobId?: string) => {
+  let query = supabase.from('job_applications').select('*', { count: 'exact' });
+  
+  if (jobId) {
+    query = query.eq('job_id', jobId);
+  }
+  
+  const { count, error } = await query;
+  
+  if (error) {
+    console.error('Error fetching applications count:', error);
+    return 0;
+  }
+  
+  return count || 0;
+};
+
 // Custom hook that uses React Query to fetch all jobs
 export function useJobs() {
   return useQuery({
@@ -95,5 +133,31 @@ export function useJob(jobId: string) {
     queryKey: ['job', jobId],
     queryFn: () => fetchJobById(jobId),
     enabled: !!jobId,
+  });
+}
+
+// Custom hook for job details page
+export function useJobById(jobId: string) {
+  return useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () => fetchJobById(jobId),
+    enabled: !!jobId,
+  });
+}
+
+// Custom hook to fetch user applications by email
+export function useUserApplications(userEmail: string) {
+  return useQuery({
+    queryKey: ['applications', userEmail],
+    queryFn: () => fetchUserApplications(userEmail),
+    enabled: !!userEmail,
+  });
+}
+
+// Custom hook to fetch applications count
+export function useApplicationsCount(jobId?: string) {
+  return useQuery({
+    queryKey: ['applications-count', jobId],
+    queryFn: () => fetchApplicationsCount(jobId),
   });
 }

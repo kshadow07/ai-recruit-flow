@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, FilesIcon, Briefcase, Building, MapPin, Calendar } from "lucide-react";
+import { ArrowLeft, FilesIcon, Briefcase, Building, MapPin, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +47,7 @@ const MyApplications = () => {
             onClick={() => navigate("/jobs")}
             className="mb-4"
           >
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Jobs
           </Button>
           
