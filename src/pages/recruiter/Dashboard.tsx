@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -22,7 +23,7 @@ import JobItem from "@/components/jobs/JobItem";
 import { api } from "@/services/api";
 import { JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
-import { useJobs, useApplicationsCount } from "@/hooks/useJobs";
+import { useJobs } from "@/hooks/useJobs";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
@@ -59,7 +60,7 @@ const Dashboard = () => {
           company: job.company,
           department: job.department,
           location: job.location,
-          employmentType: job.employment_type,
+          employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
           responsibilities: job.responsibilities,
           qualifications: job.qualifications,
           skillsRequired: job.skills_required,
