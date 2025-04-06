@@ -15,7 +15,7 @@ export const fetchJobs = async (): Promise<JobDescription[]> => {
     throw new Error('Failed to fetch jobs');
   }
 
-  // Map the raw data to our JobDescription type
+  // Map the raw data to our JobDescription type with proper type casting
   return data.map(job => ({
     id: job.id,
     title: job.title,
