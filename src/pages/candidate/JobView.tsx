@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
@@ -12,7 +13,11 @@ import {
   ArrowLeft,
   ExternalLink,
   Share2,
-  Check as CheckIcon
+  Check as CheckIcon,
+  AlertTriangle,
+  DollarSign,
+  Bookmark,
+  Share
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,11 +118,11 @@ const JobView = () => {
       <MainLayout title="Job Not Found">
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col items-center justify-center py-12">
-            <AlertTriangleIcon className="w-12 h-12 text-amber-500 mb-4" />
+            <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Job Not Found</h2>
             <p className="text-muted-foreground mb-4">The job you're looking for doesn't exist or has been removed.</p>
             <Button onClick={() => navigate("/jobs")}>
-              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Jobs
             </Button>
           </div>
@@ -137,7 +142,7 @@ const JobView = () => {
             size="sm" 
             onClick={() => navigate("/jobs")}
           >
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Jobs
           </Button>
         </div>
@@ -155,29 +160,29 @@ const JobView = () => {
                     </Badge>
                   </div>
                   <div className="flex items-center text-muted-foreground">
-                    <BuildingIcon className="w-4 h-4 mr-2" />
+                    <Building className="w-4 h-4 mr-2" />
                     <span>{job.company}</span>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   <div className="flex items-center text-muted-foreground">
-                    <MapPinIcon className="w-5 h-5 mr-2" />
+                    <MapPin className="w-5 h-5 mr-2" />
                     <span>{job.location}</span>
                   </div>
                   
                   <div className="flex items-center text-muted-foreground">
-                    <BriefcaseIcon className="w-5 h-5 mr-2" />
+                    <Briefcase className="w-5 h-5 mr-2" />
                     <span>{job.employmentType} • {job.experienceLevel}</span>
                   </div>
                   
                   <div className="flex items-center text-muted-foreground">
-                    <DollarSignIcon className="w-5 h-5 mr-2" />
+                    <DollarSign className="w-5 h-5 mr-2" />
                     <span>{formatSalary(job.salaryRange)}</span>
                   </div>
                   
                   <div className="flex items-center text-muted-foreground">
-                    <CalendarIcon className="w-5 h-5 mr-2" />
+                    <Calendar className="w-5 h-5 mr-2" />
                     <span>
                       {hasDeadlinePassed 
                         ? "Application closed" 
@@ -223,11 +228,11 @@ const JobView = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <Button variant="outline" size="sm">
-                  <ShareIcon className="w-4 h-4 mr-2" />
+                  <Share className="w-4 h-4 mr-2" />
                   Share
                 </Button>
                 <Button variant="outline" size="sm">
-                  <BookmarkIcon className="w-4 h-4 mr-2" />
+                  <Bookmark className="w-4 h-4 mr-2" />
                   Save
                 </Button>
               </div>
@@ -241,7 +246,7 @@ const JobView = () => {
                   <h2 className="text-xl font-semibold">Apply Now</h2>
                   
                   <div className="text-muted-foreground flex items-center">
-                    <ClockIcon className="w-4 h-4 mr-2" />
+                    <Clock className="w-4 h-4 mr-2" />
                     {hasDeadlinePassed 
                       ? "Application deadline has passed" 
                       : `Application deadline: ${formatDate(job.deadline)}`}
@@ -249,7 +254,7 @@ const JobView = () => {
                   
                   {hasDeadlinePassed ? (
                     <div className="bg-red-50 text-red-800 p-4 rounded-md text-sm mt-4 flex items-center">
-                      <AlertTriangleIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
                       <span>This job posting has expired and is no longer accepting applications.</span>
                     </div>
                   ) : hasApplied ? (
@@ -276,7 +281,7 @@ const JobView = () => {
                 <h2 className="text-xl font-semibold mb-4">Company Information</h2>
                 <div className="flex items-center mb-4">
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mr-3">
-                    <BuildingIcon className="w-6 h-6 text-muted-foreground" />
+                    <Building className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h3 className="font-semibold">{job.company}</h3>

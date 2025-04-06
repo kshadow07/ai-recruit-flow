@@ -62,45 +62,45 @@ const Applications = () => {
     const fetchJobs = async () => {
       try {
         const { data, error } = await supabase
-          .from('job_descriptions')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
+          .from("job_descriptions")
+          .select("*")
+          .order("created_at", { ascending: false });
+
         if (error) {
           console.error("Error fetching jobs:", error);
-          return;
+          return [];
         }
-        
-        if (data) {
-          const formattedJobs: JobDescription[] = data.map(job => ({
-            id: job.id,
-            title: job.title,
-            company: job.company,
-            department: job.department,
-            location: job.location,
-            employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
-            responsibilities: job.responsibilities,
-            qualifications: job.qualifications,
-            skillsRequired: job.skills_required,
-            experienceLevel: job.experience_level,
-            salaryRange: {
-              min: job.salary_min,
-              max: job.salary_max,
-              currency: job.salary_currency,
-            },
-            deadline: job.deadline,
-            status: job.status,
-            createdAt: job.created_at,
-            updatedAt: job.updated_at,
-            summary: job.summary || undefined,
-            externalId: job.external_id || undefined,
-            requestData: job.request_data
-          }));
-          
-          setJobs(formattedJobs);
-        }
+
+        const jobsData: JobDescription[] = data.map(job => ({
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          department: job.department,
+          location: job.location,
+          employmentType: job.employment_type,
+          responsibilities: job.responsibilities,
+          qualifications: job.qualifications,
+          skillsRequired: job.skills_required,
+          experienceLevel: job.experience_level,
+          salaryRange: {
+            min: job.salary_min,
+            max: job.salary_max,
+            currency: job.salary_currency,
+          },
+          deadline: job.deadline,
+          status: job.status as "active" | "closed" | "draft" | "processing" | "error",
+          createdAt: job.created_at,
+          updatedAt: job.updated_at,
+          summary: job.summary,
+          externalId: job.external_id,
+          requestData: job.request_data
+        }));
+
+        setJobs(jobsData);
+        return jobsData;
       } catch (error) {
         console.error("Error fetching jobs:", error);
+        return [];
       }
     };
     
