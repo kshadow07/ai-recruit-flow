@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -59,7 +58,6 @@ const Applications = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
   
-  // Fetch all available jobs for filtering
   useEffect(() => {
     const fetchJobs = async () => {
       try {
@@ -74,14 +72,13 @@ const Applications = () => {
         }
         
         if (data) {
-          // Transform data to match our JobDescription type
           const formattedJobs: JobDescription[] = data.map(job => ({
             id: job.id,
             title: job.title,
             company: job.company,
             department: job.department,
             location: job.location,
-            employmentType: job.employment_type,
+            employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
             responsibilities: job.responsibilities,
             qualifications: job.qualifications,
             skillsRequired: job.skills_required,
@@ -115,14 +112,12 @@ const Applications = () => {
       try {
         setLoading(true);
         
-        // If jobId is provided, fetch job details
         if (jobId) {
           const jobData = await api.getJobById(jobId);
           setJob(jobData);
           setSelectedJob(jobId);
         }
         
-        // Fetch applications directly from Supabase for real-time data
         let query = supabase.from('job_applications').select('*');
         
         if (jobId) {
@@ -141,30 +136,27 @@ const Applications = () => {
             description: "Please try again later."
           });
           
-          // As a fallback, try using the API
           const apiApplications = await api.getApplications(jobId);
           
           if (apiApplications && apiApplications.length > 0) {
             const formattedApplications = apiApplications.map(app => ({
               ...app,
-              // Format fields to match our type if needed
             }));
             setApplications(formattedApplications);
             setSelectedApplication(formattedApplications[0]);
           }
         } else if (applicationsData) {
-          // Transform Supabase data to match our JobApplication type
           const formattedApplications: JobApplication[] = applicationsData.map(app => ({
             id: app.id,
             jobId: app.job_id,
             appliedAt: app.applied_at,
             status: app.status as JobApplication['status'],
             matchScore: app.match_score !== null ? app.match_score : undefined,
-            notes: app.notes || undefined, // Handle notes from Supabase response
+            notes: app.notes || undefined,
             summary: app.summary || undefined,
             externalId: app.external_id || undefined,
             candidate: {
-              id: app.id, // Using the application id as candidate id for now
+              id: app.id,
               name: app.candidate_name,
               email: app.candidate_email,
               phone: app.candidate_phone,
@@ -196,7 +188,6 @@ const Applications = () => {
     
     fetchData();
     
-    // Set up a real-time subscription to job applications for live updates
     const channel = supabase
       .channel('applications-changes')
       .on('postgres_changes', 
@@ -208,13 +199,11 @@ const Applications = () => {
         }, 
         (payload) => {
           console.log('Realtime update:', payload);
-          // Refresh the data when there's a change
           fetchData();
         }
       )
       .subscribe();
     
-    // Cleanup subscription on unmount
     return () => {
       supabase.removeChannel(channel);
     };
@@ -227,7 +216,6 @@ const Applications = () => {
   const handleJobFilterChange = (value: string) => {
     setSelectedJob(value);
     if (value !== "all") {
-      // Find the job to display its title
       const selectedJobData = jobs.find(j => j.id === value);
       if (selectedJobData) {
         setJob(selectedJobData);
@@ -239,7 +227,6 @@ const Applications = () => {
   
   const sendNotificationEmail = async (application: JobApplication, status: string) => {
     try {
-      // Find the job title and company for the email
       const jobDetails = jobs.find(j => j.id === application.jobId);
       
       if (!jobDetails) {
@@ -247,7 +234,6 @@ const Applications = () => {
         return;
       }
       
-      // Call the edge function to send the email
       const { error } = await supabase.functions.invoke('send-application-email', {
         body: {
           candidate: application.candidate,
@@ -272,7 +258,6 @@ const Applications = () => {
     
     setUpdatingStatus(true);
     try {
-      // Update status in Supabase
       const { data, error } = await supabase
         .from('job_applications')
         .update({ status })
@@ -284,15 +269,12 @@ const Applications = () => {
         throw error;
       }
       
-      // Also update via API to keep both systems in sync
       try {
         await api.updateApplicationStatus(selectedApplication.id, status);
       } catch (apiError) {
         console.error("API update failed, but Supabase update succeeded:", apiError);
-        // Continue since the critical update in Supabase worked
       }
       
-      // Update local state
       const updatedApplication = {
         ...selectedApplication,
         status
@@ -303,7 +285,6 @@ const Applications = () => {
       ));
       setSelectedApplication(updatedApplication);
       
-      // Send email notification for shortlisted status
       if (status === "shortlisted") {
         await sendNotificationEmail(updatedApplication, "shortlisted");
       }
@@ -341,12 +322,9 @@ const Applications = () => {
     }
   };
   
-  // Check for high match scores and send notifications if needed
   useEffect(() => {
     const checkHighMatchScores = async () => {
-      // Go through all applications
       for (const app of applications) {
-        // If match score is high and status is pending, send notification
         if (
           app.matchScore && 
           app.matchScore >= HIGH_MATCH_SCORE && 
@@ -354,17 +332,14 @@ const Applications = () => {
         ) {
           console.log("High match score detected:", app.matchScore);
           
-          // Send email notification
           await sendNotificationEmail(app, "high_match");
           
-          // Optionally update status to reviewing
           try {
             await supabase
               .from('job_applications')
               .update({ status: "reviewing" })
               .eq('id', app.id);
               
-            // Update local state
             setApplications(prev => 
               prev.map(a => a.id === app.id ? { ...a, status: "reviewing" as JobApplication["status"] } : a)
             );
@@ -387,14 +362,11 @@ const Applications = () => {
     checkHighMatchScores();
   }, [applications]);
   
-  // Filter and search applications
   const filteredApplications = applications.filter(app => {
-    // Filter by status
     if (filter !== "all" && app.status !== filter) {
       return false;
     }
     
-    // Search by candidate name or skills
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const nameMatch = app.candidate.name.toLowerCase().includes(term);
@@ -408,7 +380,6 @@ const Applications = () => {
   });
   
   const sortedApplications = [...filteredApplications].sort((a, b) => {
-    // Sort by match score (highest first)
     return (b.matchScore || 0) - (a.matchScore || 0);
   });
   
@@ -434,7 +405,6 @@ const Applications = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-6">
-          {/* Filter and search */}
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-4">
@@ -506,7 +476,6 @@ const Applications = () => {
             </CardContent>
           </Card>
           
-          {/* Applications list */}
           <div className="space-y-3">
             {loading ? (
               <div className="flex items-center justify-center py-8">
@@ -517,7 +486,7 @@ const Applications = () => {
                 <ApplicationItem 
                   key={application.id} 
                   application={application}
-                  isSelected={selectedApplication?.id === application.id}
+                  selected={selectedApplication?.id === application.id}
                   onSelect={handleApplicationSelect}
                 />
               ))
@@ -560,7 +529,6 @@ const Applications = () => {
               
               <CardContent>
                 <div className="space-y-6">
-                  {/* Match score */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">Match Score</span>
@@ -576,7 +544,6 @@ const Applications = () => {
                     />
                   </div>
                   
-                  {/* Candidate info */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-center space-x-2">
                       <MailIcon className="w-4 h-4 text-muted-foreground" />
@@ -589,7 +556,6 @@ const Applications = () => {
                     </div>
                   </div>
                   
-                  {/* Job title info if we don't have a job selected */}
                   {!job && selectedApplication.jobId && (
                     <div className="flex items-center space-x-2 pb-2">
                       <BuildingIcon className="w-4 h-4 text-muted-foreground" />
@@ -599,7 +565,6 @@ const Applications = () => {
                     </div>
                   )}
                   
-                  {/* Cover letter if available */}
                   {selectedApplication.candidate.coverLetter && (
                     <div>
                       <h3 className="font-medium mb-2">Cover Letter</h3>
@@ -609,7 +574,6 @@ const Applications = () => {
                     </div>
                   )}
                   
-                  {/* Skills */}
                   <div>
                     <h3 className="font-medium mb-2">Skills</h3>
                     <div className="flex flex-wrap gap-2">
@@ -621,7 +585,6 @@ const Applications = () => {
                     </div>
                   </div>
                   
-                  {/* Resume download */}
                   <div>
                     <h3 className="font-medium mb-2">Resume</h3>
                     <Button 
@@ -634,7 +597,6 @@ const Applications = () => {
                     </Button>
                   </div>
                   
-                  {/* Application details */}
                   <div>
                     <h3 className="font-medium mb-2">Application Details</h3>
                     <div className="bg-muted p-4 rounded-md space-y-2">
@@ -649,7 +611,6 @@ const Applications = () => {
                     </div>
                   </div>
                   
-                  {/* Notes if available */}
                   {selectedApplication.notes && (
                     <div>
                       <h3 className="font-medium mb-2">Recruiter Notes</h3>
@@ -659,7 +620,6 @@ const Applications = () => {
                     </div>
                   )}
                   
-                  {/* Resume summary if available */}
                   {selectedApplication.summary && (
                     <div>
                       <h3 className="font-medium mb-2">AI Resume Summary</h3>

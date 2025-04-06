@@ -1,17 +1,18 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
-  ArrowLeftIcon, 
-  MapPinIcon, 
-  BriefcaseIcon, 
-  CalendarIcon, 
-  DollarSignIcon, 
-  ClockIcon,
-  BuildingIcon,
-  ShareIcon,
-  AlertTriangleIcon,
-  BookmarkIcon
+  Briefcase,
+  Calendar,
+  MapPin,
+  Clock,
+  User,
+  Building,
+  BookOpen,
+  Award,
+  ArrowLeft,
+  ExternalLink,
+  Share2,
+  Check as CheckIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

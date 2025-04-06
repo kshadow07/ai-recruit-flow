@@ -5,7 +5,6 @@ import {
   Briefcase, 
   Users, 
   PlusCircle, 
-  Archive, 
   Settings, 
   LogOut, 
   Menu, 
@@ -35,7 +34,6 @@ const RecruiterLayout = ({ children, title = "Recruiter Dashboard" }: RecruiterL
     { name: "Dashboard", path: "/recruiter", icon: <Briefcase className="w-5 h-5 mr-3" /> },
     { name: "Create Job", path: "/recruiter/create-job", icon: <PlusCircle className="w-5 h-5 mr-3" /> },
     { name: "Applications", path: "/recruiter/applications", icon: <Users className="w-5 h-5 mr-3" /> },
-    { name: "Archive", path: "/recruiter/archive", icon: <Archive className="w-5 h-5 mr-3" /> },
   ];
   
   return (

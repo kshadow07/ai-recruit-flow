@@ -1,107 +1,141 @@
 
-import { ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { User, Settings, LogOut, Menu, X } from "lucide-react";
+import { ReactNode, useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { 
+  Menu, 
+  Search, 
+  Briefcase, 
+  Building,
+  FilesIcon
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: ReactNode;
   title?: string;
 }
 
-const MainLayout = ({ children, title = "AI-Powered Recruitment" }: MainLayoutProps) => {
+const MainLayout = ({ children, title = "AI-Recruit" }: MainLayoutProps) => {
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Simulate authentication - in a real app, this would use proper auth
+    const email = localStorage.getItem("user_email");
+    setUserEmail(email);
+  }, []);
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-white">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-recruit-primary">AI-Recruit</span>
-          </Link>
-          
-          <div className="hidden md:flex items-center space-x-6">
-            <nav className="flex items-center space-x-4">
-              <Link to="/" className="text-foreground/80 hover:text-recruit-primary transition-colors">
-                Home
-              </Link>
-              <Link to="/jobs" className="text-foreground/80 hover:text-recruit-primary transition-colors">
-                Find Jobs
-              </Link>
-              <Link to="/recruiter" className="text-foreground/80 hover:text-recruit-primary transition-colors">
-                For Recruiters
-              </Link>
-            </nav>
+      <header className="border-b bg-white sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild className="mr-4 md:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[250px] p-0">
+                <div className="px-6 py-8 border-b">
+                  <Link to="/" className="flex items-center space-x-2">
+                    <span className="font-bold text-xl text-recruit-primary">AI-Recruit</span>
+                  </Link>
+                </div>
+                <nav className="p-6">
+                  <Link
+                    to="/jobs"
+                    className={`flex items-center py-3 px-3 rounded-md mb-1 font-medium transition-colors ${
+                      location.pathname === "/jobs"
+                        ? "bg-recruit-primary text-white"
+                        : "text-recruit-secondary hover:bg-recruit-primary/10"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Briefcase className="w-5 h-5 mr-3" />
+                    Browse Jobs
+                  </Link>
+                  
+                  {userEmail && (
+                    <Link
+                      to="/my-applications"
+                      className={`flex items-center py-3 px-3 rounded-md mb-1 font-medium transition-colors ${
+                        location.pathname === "/my-applications"
+                          ? "bg-recruit-primary text-white"
+                          : "text-recruit-secondary hover:bg-recruit-primary/10"
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <FilesIcon className="w-5 h-5 mr-3" />
+                      My Applications
+                    </Link>
+                  )}
+                  
+                  <div className="pt-4 pb-2 border-t mt-2 text-muted-foreground text-sm">
+                    Recruiter Options
+                  </div>
+                  
+                  <Link
+                    to="/recruiter"
+                    className={`flex items-center py-3 px-3 rounded-md mb-1 font-medium transition-colors ${
+                      location.pathname.startsWith("/recruiter")
+                        ? "bg-recruit-primary text-white"
+                        : "text-recruit-secondary hover:bg-recruit-primary/10"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Building className="w-5 h-5 mr-3" />
+                    Recruiter Dashboard
+                  </Link>
+                </nav>
+              </SheetContent>
+            </Sheet>
             
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="icon">
-                <Settings className="w-5 h-5" />
-              </Button>
-              <Avatar>
-                <AvatarImage src="https://i.pravatar.cc/150?u=user" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
+            <Link to="/" className="flex items-center space-x-2">
+              <span className="font-bold text-xl text-recruit-primary">AI-Recruit</span>
+            </Link>
+          </div>
+          
+          <div className="hidden md:flex flex-1 px-6">
+            <div className="relative max-w-md w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search for jobs..."
+                className="pl-10"
+              />
             </div>
           </div>
           
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-              <nav className="flex flex-col space-y-4 mt-8">
-                <Link 
-                  to="/" 
-                  className="text-foreground/80 hover:text-recruit-primary transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
+          <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
+              <Link to="/jobs">
+                <Button 
+                  variant={location.pathname === "/jobs" ? "default" : "ghost"}
+                  className="font-medium"
                 >
-                  Home
-                </Link>
-                <Link 
-                  to="/jobs" 
-                  className="text-foreground/80 hover:text-recruit-primary transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Find Jobs
-                </Link>
-                <Link 
-                  to="/recruiter" 
-                  className="text-foreground/80 hover:text-recruit-primary transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  For Recruiters
-                </Link>
-                
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <Avatar>
-                      <AvatarImage src="https://i.pravatar.cc/150?u=user" />
-                      <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">Guest User</p>
-                      <p className="text-sm text-muted-foreground">guest@example.com</p>
-                    </div>
-                  </div>
-                  
-                  <Button variant="outline" className="w-full justify-start" size="sm">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
+                  Browse Jobs
+                </Button>
+              </Link>
+              
+              {userEmail && (
+                <Link to="/my-applications">
+                  <Button 
+                    variant={location.pathname === "/my-applications" ? "default" : "ghost"}
+                    className="font-medium"
+                  >
+                    My Applications
                   </Button>
-                  <Button variant="outline" className="w-full justify-start mt-2" size="sm">
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Log Out
-                  </Button>
-                </div>
-              </nav>
-            </SheetContent>
-          </Sheet>
+                </Link>
+              )}
+              
+              <Link to="/recruiter">
+                <Button variant="outline">For Recruiters</Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
       
@@ -116,47 +150,9 @@ const MainLayout = ({ children, title = "AI-Powered Recruitment" }: MainLayoutPr
         {children}
       </main>
       
-      <footer className="border-t bg-white py-8">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div>
-              <h3 className="font-semibold text-lg mb-4">AI-Recruit</h3>
-              <p className="text-muted-foreground">
-                Leveraging AI to connect the right talent with the right opportunities.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-4">Quick Links</h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link to="/jobs" className="text-muted-foreground hover:text-recruit-primary transition-colors">
-                    Browse Jobs
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/recruiter" className="text-muted-foreground hover:text-recruit-primary transition-colors">
-                    For Recruiters
-                  </Link>
-                </li>
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-recruit-primary transition-colors">
-                    About Us
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-4">Contact</h3>
-              <address className="not-italic text-muted-foreground">
-                <p>123 Recruitment Ave</p>
-                <p>San Francisco, CA 94103</p>
-                <p className="mt-2">support@ai-recruit.example</p>
-              </address>
-            </div>
-          </div>
-          <div className="border-t mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} AI-Recruit. All rights reserved.</p>
-          </div>
+      <footer className="border-t bg-white py-4">
+        <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
+          <p>&copy; {new Date().getFullYear()} AI-Recruit. All rights reserved.</p>
         </div>
       </footer>
     </div>

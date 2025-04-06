@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { 
   BriefcaseIcon, 
@@ -8,38 +8,30 @@ import {
   ClockIcon,
   PlusIcon,
   ChevronRightIcon,
-  ArrowUpRightIcon
+  ArrowUpRightIcon,
+  FilterIcon
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import RecruiterLayout from "@/components/layouts/RecruiterLayout";
 import JobCard from "@/components/jobs/JobCard";
-import { api } from "@/services/api";
-import { JobDescription } from "@/types";
 import { formatDate } from "@/utils/formatters";
+import { useJobs, useApplicationsCount } from "@/hooks/useJobs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Dashboard = () => {
-  const [jobs, setJobs] = useState<JobDescription[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const data = await api.getJobs();
-        setJobs(data);
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchJobs();
-  }, []);
+  const { data: jobs = [], isLoading } = useJobs();
+  const { data: totalApplications = 0 } = useApplicationsCount();
+  const [filterSort, setFilterSort] = useState<string>("newest");
   
   const activeJobs = jobs.filter(job => job.status === "active");
   const closedJobs = jobs.filter(job => job.status === "closed");
-  const totalApplications = 42; // This would come from the API in a real app
   
   // Get job with closest deadline
   const upcomingDeadline = activeJobs.length > 0
@@ -47,6 +39,20 @@ const Dashboard = () => {
         new Date(prev.deadline) < new Date(current.deadline) ? prev : current
       )
     : null;
+  
+  // Apply sorting to jobs
+  const sortedJobs = [...jobs].sort((a, b) => {
+    switch (filterSort) {
+      case "newest":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "oldest":
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case "closing-soon":
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      default:
+        return 0;
+    }
+  });
   
   return (
     <RecruiterLayout title="Recruiter Dashboard">
@@ -141,9 +147,22 @@ const Dashboard = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Your Jobs</h2>
+            <div className="flex items-center gap-2">
+              <FilterIcon className="h-4 w-4 text-muted-foreground" />
+              <Select value={filterSort} onValueChange={setFilterSort}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="closing-soon">Closing Soon</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
-          {loading ? (
+          {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[1, 2].map((i) => (
                 <Card key={i} className="animate-pulse-slow">
@@ -151,9 +170,9 @@ const Dashboard = () => {
                 </Card>
               ))}
             </div>
-          ) : jobs.length > 0 ? (
+          ) : sortedJobs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {jobs.map((job) => (
+              {sortedJobs.map((job) => (
                 <JobCard 
                   key={job.id} 
                   job={job} 
@@ -177,92 +196,7 @@ const Dashboard = () => {
           )}
         </div>
         
-        {/* Recent Applications */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recent Applications</h2>
-            <Link to="/recruiter/applications" className="text-sm text-recruit-primary flex items-center">
-              View all
-              <ChevronRightIcon className="w-4 h-4 ml-1" />
-            </Link>
-          </div>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <ul className="divide-y">
-                <li className="py-3 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center text-sm font-medium">
-                      AJ
-                    </div>
-                    <div>
-                      <p className="font-medium">Alex Johnson</p>
-                      <p className="text-sm text-muted-foreground">Senior React Developer</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="mr-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        87% Match
-                      </span>
-                    </div>
-                    <Link to="/recruiter/applications/job-1">
-                      <Button size="sm" variant="ghost">
-                        <ArrowUpRightIcon className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-                <li className="py-3 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center text-sm font-medium">
-                      TS
-                    </div>
-                    <div>
-                      <p className="font-medium">Taylor Smith</p>
-                      <p className="text-sm text-muted-foreground">Data Scientist</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="mr-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        92% Match
-                      </span>
-                    </div>
-                    <Link to="/recruiter/applications/job-3">
-                      <Button size="sm" variant="ghost">
-                        <ArrowUpRightIcon className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-                <li className="py-3 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center text-sm font-medium">
-                      JM
-                    </div>
-                    <div>
-                      <p className="font-medium">Jordan Miller</p>
-                      <p className="text-sm text-muted-foreground">Product Manager</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="mr-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        75% Match
-                      </span>
-                    </div>
-                    <Link to="/recruiter/applications/job-2">
-                      <Button size="sm" variant="ghost">
-                        <ArrowUpRightIcon className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Application preview removed as we now have accurate data */}
       </div>
     </RecruiterLayout>
   );

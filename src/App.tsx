@@ -15,8 +15,16 @@ import JobsPage from "./pages/candidate/JobsPage";
 import JobView from "./pages/candidate/JobView";
 import ApplicationForm from "./pages/candidate/ApplicationForm";
 import ApplicationStatus from "./pages/candidate/ApplicationStatus";
+import MyApplications from "./pages/candidate/MyApplications";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute
+      refetchOnWindowFocus: false
+    }
+  }
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -39,6 +47,7 @@ const App = () => (
           <Route path="/jobs/:id" element={<JobView />} />
           <Route path="/apply/:id" element={<ApplicationForm />} />
           <Route path="/application/status/:id" element={<ApplicationStatus />} />
+          <Route path="/my-applications" element={<MyApplications />} />
           
           {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
