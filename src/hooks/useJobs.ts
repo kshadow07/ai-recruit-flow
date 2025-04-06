@@ -1,7 +1,6 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { JobDescription } from '@/types';
+import { JobDescription, JobApplication, Candidate } from '@/types';
 import { jobsCache, applicationsCache } from '@/services/cacheService';
 
 // Function to fetch all jobs
@@ -124,7 +123,7 @@ export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
 };
 
 // Function to fetch user applications by email
-export const fetchUserApplications = async (userEmail: string) => {
+export const fetchUserApplications = async (userEmail: string): Promise<JobApplication[]> => {
   if (!userEmail) return [];
   
   // Try to get from cache
@@ -146,10 +145,31 @@ export const fetchUserApplications = async (userEmail: string) => {
     throw new Error('Failed to fetch applications');
   }
   
-  // Cache the results
-  applicationsCache.set(data || []);
+  // Map the Supabase data structure to our JobApplication type
+  const mappedApplications: JobApplication[] = data.map(app => ({
+    id: app.id,
+    jobId: app.job_id,
+    candidate: {
+      id: app.id, // Using application ID as candidate ID
+      name: app.candidate_name,
+      email: app.candidate_email,
+      phone: app.candidate_phone,
+      resumeUrl: app.resume_url,
+      coverLetter: app.cover_letter || undefined,
+      skills: app.skills || [],
+    },
+    appliedAt: app.applied_at,
+    status: app.status as 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'hired' | 'processing',
+    matchScore: app.match_score,
+    notes: app.notes,
+    summary: app.summary,
+    externalId: app.external_id,
+  }));
   
-  return data || [];
+  // Cache the results
+  applicationsCache.set(mappedApplications);
+  
+  return mappedApplications;
 };
 
 // Function to fetch applications count for a job
