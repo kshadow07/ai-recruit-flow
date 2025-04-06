@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -10,7 +11,6 @@ import {
   CheckIcon,
   XIcon,
   AlertTriangleIcon,
-  Loader2Icon,
   BuildingIcon
 } from "lucide-react";
 import {
@@ -42,6 +42,8 @@ import { JobApplication, JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadingAnimation } from "@/components/ui/loading-animation";
+import { applicationsCache } from "@/services/cacheService";
 
 const HIGH_MATCH_SCORE = 80; // The threshold for high match scores
 
@@ -112,12 +114,29 @@ const Applications = () => {
       try {
         setLoading(true);
         
+        // Try to get from cache first
+        const cachedApplications = applicationsCache.get();
+        
         if (jobId) {
           const jobData = await api.getJobById(jobId);
           setJob(jobData);
           setSelectedJob(jobId);
+          
+          // If we have cached data and it's for this job, use it
+          if (cachedApplications && jobId) {
+            const jobSpecificApps = cachedApplications.filter(app => app.jobId === jobId);
+            if (jobSpecificApps.length > 0) {
+              setApplications(jobSpecificApps);
+              if (jobSpecificApps.length > 0) {
+                setSelectedApplication(jobSpecificApps[0]);
+              }
+              setLoading(false);
+              return;
+            }
+          }
         }
         
+        // If we reach here, we need to fetch from Supabase
         let query = supabase.from('job_applications').select('*');
         
         if (jobId) {
@@ -166,6 +185,9 @@ const Applications = () => {
             }
           }));
           
+          // Cache the applications
+          applicationsCache.set(formattedApplications);
+          
           setApplications(formattedApplications);
           
           if (formattedApplications.length > 0) {
@@ -197,8 +219,9 @@ const Applications = () => {
           table: 'job_applications',
           filter: jobId ? `job_id=eq.${jobId}` : selectedJob !== "all" ? `job_id=eq.${selectedJob}` : undefined
         }, 
-        (payload) => {
-          console.log('Realtime update:', payload);
+        () => {
+          // Invalidate cache on realtime updates
+          applicationsCache.clear();
           fetchData();
         }
       )
@@ -227,6 +250,8 @@ const Applications = () => {
   
   const sendNotificationEmail = async (application: JobApplication, status: string) => {
     try {
+      setUpdatingStatus(true); // Start loading to prevent multiple clicks
+      
       const jobDetails = jobs.find(j => j.id === application.jobId);
       
       if (!jobDetails) {
@@ -234,7 +259,9 @@ const Applications = () => {
         return;
       }
       
-      const { error } = await supabase.functions.invoke('send-application-email', {
+      // Send the email notification via edge function
+      console.log("Sending email notification...");
+      const { data, error } = await supabase.functions.invoke('send-application-email', {
         body: {
           candidate: application.candidate,
           status: status,
@@ -244,12 +271,20 @@ const Applications = () => {
       });
       
       if (error) {
-        throw new Error("Failed to send email notification");
+        console.error("Error sending email notification:", error);
+        toast({
+          variant: "destructive",
+          title: "Email Notification Failed",
+          description: "The application status was updated but we couldn't send the email notification."
+        });
+        return false;
       }
       
-      console.log("Email notification sent successfully");
+      console.log("Email notification sent successfully:", data);
+      return true;
     } catch (error) {
       console.error("Error sending email notification:", error);
+      return false;
     }
   };
   
@@ -285,14 +320,19 @@ const Applications = () => {
       ));
       setSelectedApplication(updatedApplication);
       
-      if (status === "shortlisted") {
-        await sendNotificationEmail(updatedApplication, "shortlisted");
+      // Send email notification
+      if (status === "shortlisted" || status === "rejected" || status === "hired") {
+        await sendNotificationEmail(updatedApplication, status);
       }
       
       toast({
         title: "Status updated",
         description: `Application status has been updated to ${status}.`
       });
+      
+      // Clear cache to ensure data is fresh on next load
+      applicationsCache.clear();
+      
     } catch (error) {
       console.error("Error updating status:", error);
       toast({
@@ -479,7 +519,7 @@ const Applications = () => {
           <div className="space-y-3">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2Icon className="w-6 h-6 text-primary animate-spin" />
+                <LoadingAnimation size="md" text="Loading applications..." />
               </div>
             ) : sortedApplications.length > 0 ? (
               sortedApplications.map((application) => (
@@ -675,10 +715,11 @@ const Applications = () => {
                     >
                       Hire
                     </Button>
-                    {selectedApplication.status === "processing" && (
+                    
+                    {(updatingStatus || selectedApplication.status === "processing") && (
                       <div className="flex items-center ml-2 text-yellow-600">
-                        <Loader2Icon className="animate-spin mr-2 h-4 w-4" /> 
-                        Processing application...
+                        <LoadingAnimation size="sm" className="mr-2" />
+                        {updatingStatus ? "Updating status..." : "Processing application..."}
                       </div>
                     )}
                   </div>

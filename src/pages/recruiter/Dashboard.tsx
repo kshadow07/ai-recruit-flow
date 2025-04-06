@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
   PlusIcon, 
@@ -7,10 +8,10 @@ import {
   MapPin, 
   Calendar,
   Users,
-  Clock,
-  Trash2,
   Edit,
-  Loader2,
+  Clock,
+  SortDesc,
+  SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,113 +21,82 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import RecruiterLayout from "@/components/layouts/RecruiterLayout";
-import { api } from "@/services/api";
-import { JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
-import { useJobs } from "@/hooks/useJobs";
+import { useJobs, useApplicationsCount, useAllJobsApplicationsCounts } from "@/hooks/useJobs";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadingAnimation } from "@/components/ui/loading-animation";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { JobDescription } from "@/types";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "most-applications">("newest");
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  
+  const { data: fetchedJobs, isLoading: jobsLoading } = useJobs(sortBy);
+  const { data: applicationCountsMap, isLoading: countsLoading } = useAllJobsApplicationsCounts();
+  const isLoading = jobsLoading || countsLoading;
+  
+  // Stats data calculation with actual data
   const [stats, setStats] = useState({
     activeJobs: 0,
     totalApplications: 0,
     closedJobs: 0,
     nextDeadline: null as Date | null
   });
-  const { toast } = useToast();
   
   useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        setLoading(true);
-        
-        const { data, error } = await supabase
-          .from("job_descriptions")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          console.error("Error fetching jobs:", error);
-          toast({
-            variant: "destructive",
-            title: "Error fetching jobs",
-            description: "Failed to load jobs. Please try again later."
-          });
-          return;
-        }
-
-        const jobsData: JobDescription[] = data.map(job => ({
-          id: job.id,
-          title: job.title,
-          company: job.company,
-          department: job.department,
-          location: job.location,
-          employmentType: job.employment_type as "Full-time" | "Part-time" | "Contract" | "Internship" | "Remote",
-          responsibilities: job.responsibilities,
-          qualifications: job.qualifications,
-          skillsRequired: job.skills_required,
-          experienceLevel: job.experience_level,
-          salaryRange: {
-            min: job.salary_min,
-            max: job.salary_max,
-            currency: job.salary_currency,
-          },
-          deadline: job.deadline,
-          status: job.status as "active" | "closed" | "draft" | "processing" | "error",
-          createdAt: job.created_at,
-          updatedAt: job.updated_at,
-          summary: job.summary,
-          externalId: job.external_id,
-          requestData: job.request_data
-        }));
-
-        setJobs(jobsData);
-        
-        // Calculate dashboard stats
-        const active = jobsData.filter(job => job.status === "active").length;
-        const closed = jobsData.filter(job => job.status === "closed").length;
-        
-        // Get applications count
-        const { count: applicationsCount } = await supabase
-          .from("job_applications")
-          .select("*", { count: "exact" });
-          
-        // Find next deadline
-        const activeJobs = jobsData.filter(job => job.status === "active");
-        const futureDeadlines = activeJobs
-          .map(job => new Date(job.deadline))
-          .filter(date => date > new Date())
-          .sort((a, b) => a.getTime() - b.getTime());
-          
-        setStats({
-          activeJobs: active,
-          totalApplications: applicationsCount || 0,
-          closedJobs: closed,
-          nextDeadline: futureDeadlines.length > 0 ? futureDeadlines[0] : null
-        });
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load jobs. Please try again later."
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchJobs();
-    
+    if (fetchedJobs && !jobsLoading) {
+      setJobs(fetchedJobs);
+      
+      // Calculate dashboard stats with real data
+      const active = fetchedJobs.filter(job => job.status === "active").length;
+      const closed = fetchedJobs.filter(job => job.status === "closed").length;
+      
+      // Find next deadline
+      const activeJobs = fetchedJobs.filter(job => job.status === "active");
+      const futureDeadlines = activeJobs
+        .map(job => new Date(job.deadline))
+        .filter(date => date > new Date())
+        .sort((a, b) => a.getTime() - b.getTime());
+      
+      setStats(prev => ({
+        ...prev,
+        activeJobs: active,
+        closedJobs: closed,
+        nextDeadline: futureDeadlines.length > 0 ? futureDeadlines[0] : null
+      }));
+    }
+  }, [fetchedJobs, jobsLoading]);
+  
+  // Get total applications from counts
+  useEffect(() => {
+    if (applicationCountsMap && !countsLoading) {
+      const totalCount = Object.values(applicationCountsMap).reduce((sum, count) => sum + count, 0);
+      setStats(prev => ({
+        ...prev,
+        totalApplications: totalCount
+      }));
+    }
+  }, [applicationCountsMap, countsLoading]);
+  
+  // Setup realtime updates
+  useEffect(() => {
     const channel = supabase
       .channel('jobs-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_descriptions' }, payload => {
-        console.log('Realtime update:', payload);
-        fetchJobs();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_descriptions' }, () => {
+        // Invalidate cache instead of directly fetching
+        window.location.reload(); // Simple refresh for now, in production would use more sophisticated cache invalidation
       })
       .subscribe();
     
@@ -135,16 +105,46 @@ const Dashboard = () => {
     };
   }, []);
   
-  const filteredJobs = jobs.filter(job => {
-    const term = searchTerm.toLowerCase();
-    return (
-      job.title.toLowerCase().includes(term) ||
-      job.company.toLowerCase().includes(term) ||
-      job.location.toLowerCase().includes(term)
-    );
-  });
-  
-  function renderJobSkillBadges(job: JobDescription) {
+  // Filter and sort jobs
+  const filteredJobs = useMemo(() => {
+    let filtered = jobs;
+
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(job => {
+        return (
+          job.title.toLowerCase().includes(term) ||
+          job.company.toLowerCase().includes(term) ||
+          job.location.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    // Sort jobs first by status (active first) then by date or applications
+    filtered.sort((a, b) => {
+      // First, sort by active status
+      if (a.status === "active" && b.status !== "active") return -1;
+      if (a.status !== "active" && b.status === "active") return 1;
+      
+      // Then apply the selected sort method
+      if (sortBy === "oldest") {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === "most-applications") {
+        const countA = applicationCountsMap?.[a.id] || 0;
+        const countB = applicationCountsMap?.[b.id] || 0;
+        return countB - countA;
+      } else {
+        // Default to newest first
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+
+    return filtered;
+  }, [jobs, searchTerm, sortBy, applicationCountsMap]);
+
+  // Render job skill badges
+  const renderJobSkillBadges = (job: JobDescription) => {
     const skills = Array.isArray(job.skillsRequired) ? job.skillsRequired : [];
     return skills.slice(0, 4).map((skill, index) => (
       <Badge key={index} variant="outline" className="mr-1 mb-1">
@@ -156,14 +156,14 @@ const Dashboard = () => {
   return (
     <RecruiterLayout>
       <div className="container px-4 py-6 max-w-7xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Recruiter Dashboard</h1>
           <p className="text-muted-foreground">Manage your job postings and applications</p>
         </div>
         
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {loading ? (
+          {isLoading ? (
             <>
               {[1, 2, 3, 4].map((i) => (
                 <Card key={i} className="animate-pulse">
@@ -236,7 +236,7 @@ const Dashboard = () => {
         </div>
         
         {/* Quick Actions */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">
             <Button 
@@ -260,24 +260,52 @@ const Dashboard = () => {
         
         {/* Job Listings */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold">Your Jobs</h2>
-            <div className="w-full max-w-xs">
-              <Input 
-                placeholder="Search jobs..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="transition-all focus:ring-2 focus:ring-primary/20"
-              />
+            
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                    <SortDesc className="h-4 w-4 mr-2" />
+                    {sortBy === "newest" ? "Newest First" : 
+                     sortBy === "oldest" ? "Oldest First" : 
+                     "Most Applications"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSortBy("newest")}>
+                    Newest First
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("oldest")}>
+                    Oldest First
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("most-applications")}>
+                    Most Applications
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              <div className="w-full sm:w-auto sm:max-w-xs">
+                <Input 
+                  placeholder="Search jobs..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="transition-all focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
           </div>
           
           <Separator className="mb-6" />
           
-          {loading ? (
+          {isLoading ? (
             <div className="space-y-4">
+              <LoadingAnimation size="md" text="Loading your jobs..." />
               {[1, 2, 3].map((i) => (
-                <Card key={i} className="overflow-hidden">
+                <Card key={i} className="overflow-hidden animate-pulse">
                   <div className="p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div className="space-y-3 w-full">
@@ -323,6 +351,12 @@ const Dashboard = () => {
                           >
                             {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                           </Badge>
+                          
+                          {applicationCountsMap && applicationCountsMap[job.id] > 0 && (
+                            <Badge variant="secondary" className="ml-2">
+                              {applicationCountsMap[job.id]} {applicationCountsMap[job.id] === 1 ? "Application" : "Applications"}
+                            </Badge>
+                          )}
                         </div>
                         
                         <p className="text-muted-foreground mb-2">{job.company}</p>
@@ -355,6 +389,11 @@ const Dashboard = () => {
                               <span>Closes {formatDate(job.deadline)}</span>
                             </div>
                           )}
+                          
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>Posted {formatTimeFromNow(job.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
                       

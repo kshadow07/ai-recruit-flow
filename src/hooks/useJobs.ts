@@ -2,9 +2,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { JobDescription } from '@/types';
+import { jobsCache, applicationsCache } from '@/services/cacheService';
 
 // Function to fetch all jobs
 export const fetchJobs = async (): Promise<JobDescription[]> => {
+  // First try to get from cache
+  const cachedJobs = jobsCache.get();
+  if (cachedJobs) {
+    console.log('Using cached jobs data');
+    return cachedJobs;
+  }
+
   const { data, error } = await supabase
     .from('job_descriptions')
     .select('*')
@@ -16,7 +24,7 @@ export const fetchJobs = async (): Promise<JobDescription[]> => {
   }
 
   // Map the raw data to our JobDescription type with proper type casting
-  return data.map(job => ({
+  const jobs = data.map(job => ({
     id: job.id,
     title: job.title,
     company: job.company,
@@ -40,10 +48,39 @@ export const fetchJobs = async (): Promise<JobDescription[]> => {
     externalId: job.external_id,
     requestData: job.request_data
   }));
+
+  // Cache the results
+  jobsCache.set(jobs);
+  
+  return jobs;
+};
+
+// Function to fetch jobs with sorting
+export const fetchJobsSorted = async (sortBy: string = 'newest'): Promise<JobDescription[]> => {
+  let jobs = await fetchJobs();
+  
+  switch (sortBy) {
+    case 'oldest':
+      return jobs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    case 'most-applications':
+      // This would ideally be handled on the server side for efficiency
+      // For now we'll fetch application counts separately
+      return jobs; // Will be sorted later after counts are retrieved
+    case 'newest':
+    default:
+      return jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
 };
 
 // Function to fetch a specific job by ID
 export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
+  // First try to get from cache
+  const cachedJob = jobsCache.getJob(jobId);
+  if (cachedJob) {
+    console.log('Using cached job data for ID:', jobId);
+    return cachedJob;
+  }
+
   const { data, error } = await supabase
     .from('job_descriptions')
     .select('*')
@@ -55,7 +92,7 @@ export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
     throw new Error('Failed to fetch job');
   }
 
-  return {
+  const job = {
     id: data.id,
     title: data.title,
     company: data.company,
@@ -79,11 +116,22 @@ export const fetchJobById = async (jobId: string): Promise<JobDescription> => {
     externalId: data.external_id,
     requestData: data.request_data
   };
+
+  // Cache the job
+  jobsCache.setJob(job);
+  
+  return job;
 };
 
 // Function to fetch user applications by email
 export const fetchUserApplications = async (userEmail: string) => {
   if (!userEmail) return [];
+  
+  // Try to get from cache
+  const cachedApplications = applicationsCache.get();
+  if (cachedApplications) {
+    return cachedApplications.filter(app => app.candidate?.email === userEmail);
+  }
   
   const { data, error } = await supabase
     .from('job_applications')
@@ -97,6 +145,9 @@ export const fetchUserApplications = async (userEmail: string) => {
     console.error('Error fetching user applications:', error);
     throw new Error('Failed to fetch applications');
   }
+  
+  // Cache the results
+  applicationsCache.set(data || []);
   
   return data || [];
 };
@@ -119,11 +170,34 @@ export const fetchApplicationsCount = async (jobId?: string) => {
   return count || 0;
 };
 
-// Custom hook that uses React Query to fetch all jobs
-export function useJobs() {
+// Function to fetch application counts for all jobs
+export const fetchAllJobsApplicationsCounts = async (): Promise<Record<string, number>> => {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select('job_id');
+    
+  if (error) {
+    console.error('Error fetching application counts:', error);
+    return {};
+  }
+  
+  const counts: Record<string, number> = {};
+  data.forEach(app => {
+    if (!counts[app.job_id]) {
+      counts[app.job_id] = 0;
+    }
+    counts[app.job_id]++;
+  });
+  
+  return counts;
+};
+
+// Custom hook that uses React Query to fetch all jobs with optional sorting
+export function useJobs(sortBy?: string) {
   return useQuery({
-    queryKey: ['jobs'],
-    queryFn: fetchJobs
+    queryKey: ['jobs', sortBy],
+    queryFn: () => sortBy ? fetchJobsSorted(sortBy) : fetchJobs(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -133,6 +207,7 @@ export function useJob(jobId: string) {
     queryKey: ['job', jobId],
     queryFn: () => fetchJobById(jobId),
     enabled: !!jobId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -142,6 +217,7 @@ export function useJobById(jobId: string) {
     queryKey: ['job', jobId],
     queryFn: () => fetchJobById(jobId),
     enabled: !!jobId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -151,6 +227,7 @@ export function useUserApplications(userEmail: string) {
     queryKey: ['applications', userEmail],
     queryFn: () => fetchUserApplications(userEmail),
     enabled: !!userEmail,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -159,5 +236,15 @@ export function useApplicationsCount(jobId?: string) {
   return useQuery({
     queryKey: ['applications-count', jobId],
     queryFn: () => fetchApplicationsCount(jobId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Custom hook to fetch job application counts for all jobs
+export function useAllJobsApplicationsCounts() {
+  return useQuery({
+    queryKey: ['all-applications-counts'],
+    queryFn: fetchAllJobsApplicationsCounts,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
