@@ -4,25 +4,30 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { 
   Card, 
-  CardContent, 
-  CardFooter 
+  CardContent
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
-import { Briefcase, MapPin, Calendar, Users, Edit, Eye } from "lucide-react";
+import { Briefcase, MapPin, Calendar, Users, Edit, Eye, Trash } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface JobItemProps {
   job: JobDescription;
   showActions?: boolean;
   isCompact?: boolean;
+  onDelete?: (jobId: string) => void;
+  refetch?: () => void;
 }
 
 const JobItem: React.FC<JobItemProps> = ({ 
   job, 
   showActions = true,
-  isCompact = false
+  isCompact = false,
+  onDelete,
+  refetch
 }) => {
   const navigate = useNavigate();
   
@@ -32,6 +37,42 @@ const JobItem: React.FC<JobItemProps> = ({
     draft: "bg-gray-100 text-gray-800 border-gray-200",
     processing: "bg-blue-100 text-blue-800 border-blue-200",
     error: "bg-amber-100 text-amber-800 border-amber-200",
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this job posting?")) {
+      try {
+        const { error } = await supabase
+          .from('job_descriptions')
+          .delete()
+          .eq('id', job.id);
+        
+        if (error) {
+          throw error;
+        }
+        
+        toast({
+          title: "Job Deleted",
+          description: "Job posting has been deleted successfully",
+        });
+        
+        if (refetch) {
+          refetch();
+        }
+        
+        if (onDelete) {
+          onDelete(job.id);
+        }
+      } catch (error) {
+        console.error("Error deleting job:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete job posting"
+        });
+      }
+    }
   };
   
   const renderSkillBadges = () => {
@@ -56,10 +97,10 @@ const JobItem: React.FC<JobItemProps> = ({
   
   return (
     <Card className={`transition-all hover:shadow-md border-l-4 ${
-      job.status === 'active' ? 'border-l-green-400' : 
-      job.status === 'closed' ? 'border-l-red-400' : 
-      job.status === 'draft' ? 'border-l-gray-400' : 
-      job.status === 'processing' ? 'border-l-blue-400' : 'border-l-amber-400'
+      job.status === 'active' ? 'border-l-purple-500' : 
+      job.status === 'closed' ? 'border-l-red-500' : 
+      job.status === 'draft' ? 'border-l-gray-500' : 
+      job.status === 'processing' ? 'border-l-blue-500' : 'border-l-amber-500'
     }`}>
       <CardContent className={`p-5 ${isCompact ? 'pb-3' : 'pb-4'}`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -120,7 +161,7 @@ const JobItem: React.FC<JobItemProps> = ({
                 size="sm"
                 variant="outline" 
                 className="flex gap-1.5 items-center text-xs h-8"
-                onClick={() => navigate(`/recruiter/edit-job/${job.id}`)}
+                onClick={() => navigate(`/recruiter/job/edit/${job.id}`)}
               >
                 <Edit className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Edit</span>
@@ -133,6 +174,16 @@ const JobItem: React.FC<JobItemProps> = ({
               >
                 <Users className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Applications</span>
+              </Button>
+
+              <Button 
+                size="sm"
+                variant="destructive" 
+                className="flex gap-1.5 items-center text-xs h-8"
+                onClick={handleDelete}
+              >
+                <Trash className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Delete</span>
               </Button>
             </div>
           )}

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -13,7 +14,8 @@ import {
   Lightbulb,
   DollarSign,
   AlertTriangleIcon,
-  Loader2Icon
+  Loader2Icon,
+  Trash2Icon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +28,7 @@ import { api } from "@/services/api";
 import { JobDescription } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
 import { useJobById, useApplicationsCount } from "@/hooks/useJobs";
+import { supabase } from "@/integrations/supabase/client";
 
 const JobDetails = () => {
   const { jobId } = useParams<{ jobId?: string }>();
@@ -65,6 +68,35 @@ const JobDetails = () => {
       fetchJob();
     }
   }, [jobId, fetchedJob, toast]);
+
+  const handleDeleteJob = async () => {
+    if (!jobId || !job) return;
+    
+    if (window.confirm("Are you sure you want to delete this job posting? This action cannot be undone.")) {
+      try {
+        const { error } = await supabase
+          .from('job_descriptions')
+          .delete()
+          .eq('id', jobId);
+          
+        if (error) throw error;
+        
+        toast({
+          title: "Success",
+          description: "Job posting deleted successfully."
+        });
+        
+        navigate('/recruiter');
+      } catch (error) {
+        console.error("Error deleting job:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete job posting."
+        });
+      }
+    }
+  };
   
   if (isJobLoading) {
     return (
@@ -116,14 +148,24 @@ const JobDetails = () => {
             <ArrowLeftIcon className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
-          <Button 
-            variant="secondary" 
-            size="sm" 
-            onClick={() => navigate(`/recruiter/job/edit/${job.id}`)}
-          >
-            <EditIcon className="w-4 h-4 mr-2" />
-            Edit Job
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigate(`/recruiter/job/edit/${job.id}`)}
+            >
+              <EditIcon className="w-4 h-4 mr-2" />
+              Edit Job
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteJob}
+            >
+              <Trash2Icon className="w-4 h-4 mr-2" />
+              Delete Job
+            </Button>
+          </div>
         </div>
         
         <Card className="mb-4">

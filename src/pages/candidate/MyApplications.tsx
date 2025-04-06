@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, FilesIcon, Briefcase, Building, MapPin, Calendar } from "lucide-react";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import MainLayout from "@/components/layouts/MainLayout";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
 import { useUserApplications } from "@/hooks/useJobs";
+import { useJob } from "@/hooks/useJobs";
 
 const MyApplications = () => {
   const navigate = useNavigate();
@@ -23,7 +25,7 @@ const MyApplications = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "shortlisted":
-        return <Badge className="bg-green-100 text-green-800">Shortlisted</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800">Shortlisted</Badge>;
       case "rejected":
         return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
       case "reviewing":
@@ -76,7 +78,7 @@ const MyApplications = () => {
           </Card>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-recruit-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
           </div>
         ) : isError ? (
           <Card>
@@ -102,88 +104,93 @@ const MyApplications = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {applications?.map((application) => (
-              <Card key={application.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="p-6 border-b">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div>
-                        <div className="flex items-start gap-3">
-                          <div className="hidden sm:block">
-                            <Briefcase className="w-10 h-10 text-recruit-primary bg-blue-50 p-2 rounded-md" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold">
-                              {application.job_descriptions?.title}
-                            </h3>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 text-sm text-muted-foreground">
-                              <div className="flex items-center">
-                                <Building className="w-4 h-4 mr-1" />
-                                {application.job_descriptions?.company}
-                              </div>
-                              <div className="flex items-center">
-                                <MapPin className="w-4 h-4 mr-1" />
-                                {application.job_descriptions?.location}
+            {applications?.map((application) => {
+              // Use the JobDetails component to fetch the job details
+              const { data: jobData } = useJob(application.jobId);
+              
+              return (
+                <Card key={application.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="p-6 border-b">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                          <div className="flex items-start gap-3">
+                            <div className="hidden sm:block">
+                              <Briefcase className="w-10 h-10 text-purple-600 bg-purple-50 p-2 rounded-md" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold">
+                                {jobData?.title || "Loading..."}
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 text-sm text-muted-foreground">
+                                <div className="flex items-center">
+                                  <Building className="w-4 h-4 mr-1" />
+                                  {jobData?.company || ""}
+                                </div>
+                                <div className="flex items-center">
+                                  <MapPin className="w-4 h-4 mr-1" />
+                                  {jobData?.location || ""}
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {getStatusBadge(application.status)}
-                        <span className="text-sm text-muted-foreground">
-                          Applied {formatTimeFromNow(application.applied_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-6 bg-gray-50">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-2 text-recruit-primary" />
-                          <span className="text-sm">
-                            <span className="text-muted-foreground mr-1">Closing date:</span>
-                            {formatDate(application.job_descriptions?.deadline)}
+                        <div className="flex flex-col items-end gap-2">
+                          {getStatusBadge(application.status)}
+                          <span className="text-sm text-muted-foreground">
+                            Applied {formatTimeFromNow(application.appliedAt)}
                           </span>
                         </div>
-                        
-                        {application.match_score && (
-                          <div className="flex items-center">
-                            <div className="w-full max-w-xs">
-                              <div className="text-xs flex justify-between">
-                                <span>Match Score</span>
-                                <span className="font-medium">{application.match_score}%</span>
-                              </div>
-                              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-recruit-primary rounded-full" 
-                                  style={{ width: `${application.match_score}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex space-x-3">
-                        <Link to={`/application/status/${application.id}`}>
-                          <Button variant="outline" size="sm">
-                            View Status
-                          </Button>
-                        </Link>
-                        <Link to={`/jobs/${application.job_id}`}>
-                          <Button size="sm">
-                            View Job
-                          </Button>
-                        </Link>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    
+                    <div className="p-6 bg-gray-50">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-2 text-purple-600" />
+                            <span className="text-sm">
+                              <span className="text-muted-foreground mr-1">Closing date:</span>
+                              {jobData?.deadline ? formatDate(jobData.deadline) : "Loading..."}
+                            </span>
+                          </div>
+                          
+                          {application.matchScore && (
+                            <div className="flex items-center">
+                              <div className="w-full max-w-xs">
+                                <div className="text-xs flex justify-between">
+                                  <span>Match Score</span>
+                                  <span className="font-medium">{application.matchScore}%</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-purple-600 rounded-full" 
+                                    style={{ width: `${application.matchScore}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex space-x-3">
+                          <Link to={`/application/status/${application.id}`}>
+                            <Button variant="outline" size="sm">
+                              View Status
+                            </Button>
+                          </Link>
+                          <Link to={`/jobs/${application.jobId}`}>
+                            <Button size="sm">
+                              View Job
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

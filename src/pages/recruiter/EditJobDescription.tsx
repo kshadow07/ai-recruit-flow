@@ -61,7 +61,10 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const EditJobDescription = () => {
-  const { id } = useParams<{ id: string }>();
+  // Use both id and jobId to cover all route parameter possibilities
+  const params = useParams<{ id?: string, jobId?: string }>();
+  const jobId = params.id || params.jobId;
+  
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -91,12 +94,19 @@ const EditJobDescription = () => {
   useEffect(() => {
     const fetchJobData = async () => {
       try {
-        if (!id) {
+        if (!jobId) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No job ID provided"
+          });
           navigate("/recruiter");
           return;
         }
         
-        const job = await api.getJobById(id);
+        console.log("Fetching job with ID:", jobId);
+        const job = await api.getJobById(jobId);
+        console.log("Job data fetched:", job);
         setJobData(job);
         
         // Set form values
@@ -120,7 +130,7 @@ const EditJobDescription = () => {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load job data",
+          description: "Failed to load job data"
         });
       } finally {
         setLoading(false);
@@ -128,11 +138,11 @@ const EditJobDescription = () => {
     };
     
     fetchJobData();
-  }, [id, navigate, form]);
+  }, [jobId, navigate, form]);
   
   // Submit handler
   const onSubmit = async (data: FormValues) => {
-    if (!id || !jobData) return;
+    if (!jobId || !jobData) return;
     
     setSubmitting(true);
     try {
@@ -155,14 +165,14 @@ const EditJobDescription = () => {
         deadline: data.deadline.toISOString(),
       };
       
-      await api.updateJob(id, updatedJob);
+      await api.updateJob(jobId, updatedJob);
       
       toast({
         title: "Job Updated",
         description: "Your job posting has been updated successfully",
       });
       
-      navigate(`/recruiter/job/${id}`);
+      navigate(`/recruiter/job/${jobId}`);
     } catch (error) {
       console.error("Error updating job:", error);
       toast({
@@ -205,13 +215,13 @@ const EditJobDescription = () => {
   return (
     <RecruiterLayout title="Edit Job Description">
       <Card>
-        <CardHeader>
-          <CardTitle>Edit Job Description</CardTitle>
+        <CardHeader className="bg-purple-50">
+          <CardTitle className="text-purple-800">Edit Job Description</CardTitle>
           <CardDescription>
             Update your job posting details. Once saved, changes will be reflected immediately.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -466,11 +476,11 @@ const EditJobDescription = () => {
                   type="button"
                   variant="outline"
                   className="mr-2"
-                  onClick={() => navigate(`/recruiter/job/${id}`)}
+                  onClick={() => navigate(`/recruiter/job/${jobId}`)}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting} className="bg-purple-700 hover:bg-purple-800">
                   {submitting ? (
                     <>Saving Changes...</>
                   ) : (

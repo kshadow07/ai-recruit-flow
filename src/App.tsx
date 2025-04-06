@@ -38,6 +38,7 @@ function App() {
 
           {/* Job Search Routes */}
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/jobs/:id" element={<JobView />} />
           <Route path="/job/:jobId" element={<JobView />} />
           <Route path="/apply/:jobId" element={<ApplicationForm />} />
           <Route path="/application/status/:applicationId" element={<ApplicationStatus />} />
@@ -46,6 +47,7 @@ function App() {
           {/* Recruiter Routes */}
           <Route path="/recruiter" element={<RecruiterDashboard />} />
           <Route path="/recruiter/create-job" element={<CreateJobDescription />} />
+          <Route path="/recruiter/job/edit/:id" element={<EditJobDescription />} />
           <Route path="/recruiter/edit-job/:jobId" element={<EditJobDescription />} />
           <Route path="/recruiter/job/:jobId" element={<JobDetails />} />
           <Route path="/recruiter/applications" element={<Applications />} />
