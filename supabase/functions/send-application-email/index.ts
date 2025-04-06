@@ -6,25 +6,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-serve(async (req) => {
+serve(async (req)=>{
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: corsHeaders
     });
   }
-
   try {
     const { candidate, status, jobTitle, company } = await req.json();
-    
     console.log(`Sending email for candidate ${candidate.name} with status ${status} for job ${jobTitle}`);
-
     // This is a mock implementation since we don't have an actual email service integrated
     // In a real implementation, you would use a service like SendGrid, Resend, etc.
-    
     let emailSubject = "";
     let emailBody = "";
-    
     if (status === "shortlisted") {
       emailSubject = `You've been shortlisted for ${jobTitle} at ${company}`;
       emailBody = `
@@ -50,31 +45,29 @@ serve(async (req) => {
         <p>Best regards,<br>The ${company} Recruitment Team</p>
       `;
     }
-    
     console.log(`Email would be sent to ${candidate.email} with subject: ${emailSubject}`);
-    
     // For now, we just return success since we're not actually sending emails
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Email notification would be sent to ${candidate.email}`
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Email notification would be sent to ${candidate.email}`
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
   } catch (error) {
     console.error("Error in send-application-email function:", error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
   }
 });

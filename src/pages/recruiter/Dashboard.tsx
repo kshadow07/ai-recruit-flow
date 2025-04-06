@@ -8,18 +8,19 @@ import {
   MapPin, 
   Calendar,
   Users,
-  FileText,
-  AlertTriangle,
-  Loader2
+  Clock,
+  Trash2,
+  Edit,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
-import MainLayout from "@/components/layouts/MainLayout";
-import JobItem from "@/components/jobs/JobItem";
+import { Skeleton } from "@/components/ui/skeleton";
+import RecruiterLayout from "@/components/layouts/RecruiterLayout";
 import { api } from "@/services/api";
 import { JobDescription } from "@/types";
 import { formatDate, formatTimeFromNow } from "@/utils/formatters";
@@ -31,8 +32,13 @@ const Dashboard = () => {
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    activeJobs: 0,
+    totalApplications: 0,
+    closedJobs: 0,
+    nextDeadline: null as Date | null
+  });
   const { toast } = useToast();
-  const { data: jobsData, isLoading, isError } = useJobs();
   
   useEffect(() => {
     const fetchJobs = async () => {
@@ -80,6 +86,29 @@ const Dashboard = () => {
         }));
 
         setJobs(jobsData);
+        
+        // Calculate dashboard stats
+        const active = jobsData.filter(job => job.status === "active").length;
+        const closed = jobsData.filter(job => job.status === "closed").length;
+        
+        // Get applications count
+        const { count: applicationsCount } = await supabase
+          .from("applications")
+          .select("*", { count: "exact" });
+          
+        // Find next deadline
+        const activeJobs = jobsData.filter(job => job.status === "active");
+        const futureDeadlines = activeJobs
+          .map(job => new Date(job.deadline))
+          .filter(date => date > new Date())
+          .sort((a, b) => a.getTime() - b.getTime());
+          
+        setStats({
+          activeJobs: active,
+          totalApplications: applicationsCount || 0,
+          closedJobs: closed,
+          nextDeadline: futureDeadlines.length > 0 ? futureDeadlines[0] : null
+        });
       } catch (error) {
         console.error("Error fetching jobs:", error);
         toast({
@@ -116,68 +145,279 @@ const Dashboard = () => {
     );
   });
   
+  const renderJobSkillBadges = (job: JobDescription) => {
+    const skills = Array.isArray(job.skillsRequired) ? job.skillsRequired : [];
+    return skills.slice(0, 4).map((skill, index) => (
+      <Badge key={index} variant="outline" className="mr-1 mb-1">
+        {skill}
+      </Badge>
+    ));
+  };
+
   return (
-    <MainLayout title="Dashboard">
-      <div className="container mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl sm:text-3xl font-bold animate-fade-in">Job Postings</h1>
-          <Button 
-            onClick={() => navigate("/recruiter/job/new")} 
-            className="transition-all duration-300 hover:shadow-md animate-fade-in"
-          >
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Create Job
-          </Button>
+    <RecruiterLayout>
+      <div className="container px-4 py-6 max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-2">Recruiter Dashboard</h1>
+          <p className="text-muted-foreground">Manage your job postings and applications</p>
         </div>
         
-        <div className="mb-4 animate-fade-in">
-          <Input 
-            placeholder="Search job postings..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {loading ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader className="pb-2">
+                    <Skeleton className="h-4 w-24 mb-1" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-16" />
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            <>
+              <Card className="border-l-4 border-l-blue-500 transition-all hover:shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+                    Active Jobs
+                    <Briefcase className="h-4 w-4 ml-2 text-blue-500" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{stats.activeJobs}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-l-4 border-l-green-500 transition-all hover:shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+                    Total Applications
+                    <Users className="h-4 w-4 ml-2 text-green-500" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{stats.totalApplications}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-l-4 border-l-orange-500 transition-all hover:shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+                    Closed Jobs
+                    <Briefcase className="h-4 w-4 ml-2 text-orange-500" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">{stats.closedJobs}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-l-4 border-l-purple-500 transition-all hover:shadow-md">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+                    Next Deadline
+                    <Calendar className="h-4 w-4 ml-2 text-purple-500" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {stats.nextDeadline ? (
+                      formatDate(stats.nextDeadline.toISOString().split('T')[0], "MMM d")
+                    ) : (
+                      "N/A"
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
         
-        <Separator className="mb-4" />
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              onClick={() => navigate("/recruiter/create-job")} 
+              className="flex items-center gap-2"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Create New Job
+            </Button>
+            
+            <Button 
+              variant="outline"
+              onClick={() => navigate("/recruiter/applications")} 
+              className="flex items-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              View Applications
+            </Button>
+          </div>
+        </div>
         
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+        {/* Job Listings */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Your Jobs</h2>
+            <div className="w-full max-w-xs">
+              <Input 
+                placeholder="Search jobs..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="transition-all focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
           </div>
-        ) : filteredJobs.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6">
-            {filteredJobs.map((job, index) => (
-              <div 
-                key={job.id} 
-                className="animate-fade-in" 
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <JobItem job={job} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Card className="animate-fade-in">
-            <CardContent className="py-8 text-center">
+          
+          <Separator className="mb-6" />
+          
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="overflow-hidden">
+                  <div className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="space-y-3 w-full">
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                        <div className="flex flex-wrap gap-2">
+                          <Skeleton className="h-6 w-16 rounded-full" />
+                          <Skeleton className="h-6 w-16 rounded-full" />
+                          <Skeleton className="h-6 w-16 rounded-full" />
+                        </div>
+                        <div className="flex flex-wrap gap-4 pt-2">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-2 sm:mt-0">
+                        <Skeleton className="h-9 w-9 rounded-md" />
+                        <Skeleton className="h-9 w-9 rounded-md" />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : filteredJobs.length > 0 ? (
+            <div className="space-y-4">
+              {filteredJobs.map((job) => (
+                <Card key={job.id} className="overflow-hidden hover:shadow-md transition-shadow group">
+                  <div className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center mb-2">
+                          <h3 className="text-lg font-semibold hover:text-primary transition-colors">
+                            <Link to={`/recruiter/job/${job.id}`}>{job.title}</Link>
+                          </h3>
+                          <Badge 
+                            variant={job.status === "active" ? "default" : 
+                                   job.status === "closed" ? "destructive" : 
+                                   job.status === "draft" ? "outline" : 
+                                   "secondary"}
+                            className="ml-3"
+                          >
+                            {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+                          </Badge>
+                        </div>
+                        
+                        <p className="text-muted-foreground mb-2">{job.company}</p>
+                        
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {renderJobSkillBadges(job)}
+                          {Array.isArray(job.skillsRequired) && job.skillsRequired.length > 4 && (
+                            <Badge variant="outline">+{job.skillsRequired.length - 4} more</Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center text-sm text-muted-foreground gap-4">
+                          {job.location && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span>{job.location}</span>
+                            </div>
+                          )}
+                          
+                          {job.employmentType && (
+                            <div className="flex items-center gap-1">
+                              <Briefcase className="h-3.5 w-3.5" />
+                              <span>{job.employmentType}</span>
+                            </div>
+                          )}
+                          
+                          {job.deadline && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              <span>Closes {formatDate(job.deadline)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 sm:flex-col md:flex-row">
+                        <Button 
+                          size="icon"
+                          variant="outline"
+                          onClick={() => navigate(`/recruiter/edit-job/${job.id}`)}
+                          className="h-9 w-9"
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                        
+                        <Button 
+                          size="icon"
+                          variant="outline" 
+                          onClick={() => navigate(`/recruiter/job/${job.id}`)}
+                          className="h-9 w-9"
+                        >
+                          <Users className="h-4 w-4" />
+                          <span className="sr-only">View Applications</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-12 text-center bg-muted/30">
               <div className="flex flex-col items-center justify-center text-muted-foreground">
-                <AlertTriangle className="w-8 h-8 mb-2" />
-                <p>No job postings found</p>
+                <Briefcase className="w-10 h-10 mb-3 opacity-20" />
+                <p className="text-lg font-medium mb-1">No job postings found</p>
+                <p className="text-sm max-w-md mx-auto">
+                  {searchTerm 
+                    ? "Try adjusting your search query or create a new job posting"
+                    : "Get started by creating your first job posting"}
+                </p>
                 {searchTerm && (
                   <Button 
-                    variant="ghost" 
-                    className="mt-2 transition-colors hover:bg-primary/10" 
+                    variant="outline" 
+                    className="mt-4" 
                     onClick={() => setSearchTerm("")}
                   >
                     Clear search
                   </Button>
                 )}
+                
+                <Button 
+                  onClick={() => navigate("/recruiter/create-job")} 
+                  className="mt-4"
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Create Job
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </Card>
+          )}
+        </div>
       </div>
-    </MainLayout>
+    </RecruiterLayout>
   );
 };
 
